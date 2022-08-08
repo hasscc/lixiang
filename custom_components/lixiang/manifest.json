@@ -1,0 +1,11 @@
+{
+  "domain": "lixiang",
+  "name": "理想汽车",
+  "version": "0.0.1",
+  "config_flow": true,
+  "documentation": "https://github.com/hasscc/lixiang",
+  "issue_tracker": "https://github.com/hasscc/lixiang/issues",
+  "requirements": [],
+  "codeowners": [],
+  "iot_class": "cloud_polling"
+}

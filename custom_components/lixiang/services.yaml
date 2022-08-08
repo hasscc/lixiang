@@ -1,0 +1,30 @@
+request_api:
+  description: Request LiXiang API
+  fields:
+    entity_id:
+      required: true
+      selector:
+        entity:
+          integration: lixiang
+    api:
+      description: API path
+      example: /aisp-account-api/v1-0/vehicles
+      required: true
+      selector:
+        text:
+    params:
+      description: Request params
+      example: '{"key":"val"}'
+      selector:
+        object:
+    headers:
+      description: Request headers
+      example: '{"x-chj-sign":"xxxx"}'
+      selector:
+        object:
+    throw:
+      description: Throw result
+      default: true
+      example: true
+      selector:
+        boolean:
