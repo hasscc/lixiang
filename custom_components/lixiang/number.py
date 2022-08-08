@@ -59,4 +59,4 @@ class XNumberEntity(BaseEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float):
         """Set new value."""
-        return await self.async_set_property(value)
+        return await self.hass.async_add_executor_job(self.set_native_value, value)

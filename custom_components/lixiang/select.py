@@ -48,12 +48,4 @@ class XSelectEntity(BaseEntity, SelectEntity):
 
     async def async_select_option(self, option: str):
         """Change the selected option."""
-        extra = {}
-        if isinstance(self._options, dict):
-            for k, v in self._options.items():
-                opt = v if isinstance(v, dict) else {'name': v}
-                if option == opt.get('name', k):
-                    option = k
-                    extra = opt.get('extra') or {}
-                    break
-        return await self.async_set_property(option, extra)
+        return await self.hass.async_add_executor_job(self.select_option, option)
