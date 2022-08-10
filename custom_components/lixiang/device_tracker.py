@@ -144,6 +144,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             'loc_time': self.updated_at,
             'height': self.location_status.get('alt'),
             'direction': int(self.location_status.get('dir', 0)),
+            'speed': self._attr_extra_state_attributes.get('speed', 0),
             'coord_type_input': 'wgs84',
         }
         url = 'https://yingyan.baidu.com/api/v3/track/addpoint'
