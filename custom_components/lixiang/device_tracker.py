@@ -44,11 +44,11 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
 
         tim = self.updated_at
         if tim and pre and tim > pre:
-            await self.update_to_traccar()
-            await self.update_to_baidu_yingyan()
-
             if spd := self.get_speed():
                 self._attr_extra_state_attributes['speed'] = spd
+
+            await self.update_to_traccar()
+            await self.update_to_baidu_yingyan()
 
             self._prev_updated = tim
             self._prev_location = (self.latitude, self.longitude)
@@ -90,7 +90,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
     def get_speed(self):
         if self._prev_location and self._prev_updated:
             dur = self.updated_at - self._prev_updated
-            if dur >= 5:
+            if dur >= 2:
                 dis = get_distance_hav(
                     self._prev_location[0], self._prev_location[1],
                     self.latitude, self.longitude,
