@@ -1,5 +1,6 @@
 """Support for device tracker."""
 import logging
+import datetime
 from math import sin, asin, cos, radians, fabs, sqrt
 
 from homeassistant.core import HomeAssistant
@@ -40,6 +41,8 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
         pre = self._prev_updated
         if state := self.hass.states.get(self.entity_id):
             pre = state.attributes.get('timestamp')
+            if isinstance(pre, datetime.datetime):
+                pre = pre.timestamp()
 
         await super().update_from_device()
 
