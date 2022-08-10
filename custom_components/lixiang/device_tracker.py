@@ -19,6 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DATA_KEY = f'{ENTITY_DOMAIN}.{DOMAIN}'
 EARTH_RADIUS = 6371
+KNOTS_TO_KPH_RATIO = 0.539957
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
@@ -113,7 +114,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             'loc_time': self.updated_at,
             'altitude': self.location_status.get('alt'),
             'heading': self.location_status.get('dir'),
-            'speed': self._attr_extra_state_attributes.get('speed', 0) * 0.539957,  # km/h -> knots
+            'speed': self._attr_extra_state_attributes.get('speed', 0) * KNOTS_TO_KPH_RATIO,  # km/h -> knots
             'batt': self.battery_level,
             'fuel': self.device.endurance_attrs().get('residueFuel'),
             'totalDistance': self.device.mileage_attrs().get('totalMileage'),
