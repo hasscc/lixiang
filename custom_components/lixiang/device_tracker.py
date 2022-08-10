@@ -74,7 +74,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
 
     @property
     def updated_at(self):
-        return self.device.location_attrs().get('timestamp')
+        return self.location_status.get('ct') or 0
 
     @property
     def latitude(self):
