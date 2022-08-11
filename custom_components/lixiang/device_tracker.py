@@ -1,6 +1,6 @@
 """Support for device tracker."""
 import logging
-import datetime
+import json
 from math import sin, asin, cos, radians, fabs, sqrt
 
 from homeassistant.core import HomeAssistant
@@ -8,6 +8,7 @@ from homeassistant.components.device_tracker.config_entry import (
     TrackerEntity,
     DOMAIN as ENTITY_DOMAIN,
 )
+from homeassistant.util import dt
 from aiohttp.client_exceptions import ClientConnectorError
 
 from . import (
@@ -40,9 +41,8 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
     async def update_from_device(self):
         pre = self._prev_updated
         if state := self.hass.states.get(self.entity_id):
-            pre = state.attributes.get('timestamp')
-            if isinstance(pre, datetime.datetime):
-                pre = pre.timestamp()
+            if pre := state.attributes.get('timestamp'):
+                pre = dt.as_timestamp(pre)
 
         await super().update_from_device()
 
@@ -77,7 +77,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
 
     @property
     def updated_at(self):
-        return self.location_status.get('ct') or 0
+        return self.device.to_number(self.location_status.get('ct'), 0) / 1000
 
     @property
     def latitude(self):
@@ -109,6 +109,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
         if not host or not did:
             return None
         # https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/protocol/OsmAndProtocolDecoder.java
+        # https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/model/Position.java
         pms = {
             'id': did,
             'timestamp': self.updated_at,
@@ -132,7 +133,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
         try:
             await self.device.http.get(url, data=pms)
         except (ClientConnectorError, Exception) as exc:
-            _LOGGER.warning('Update to traccar: %s', exc)
+            _LOGGER.warning('Update to traccar: %s', [pms, exc])
 
     async def update_to_baidu_yingyan(self):
         key = self.get_customize('baidu_yingyan_key')
@@ -145,20 +146,22 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             'entity_name': self.device.vin,
             'latitude': self.latitude,
             'longitude': self.longitude,
-            'loc_time': self.updated_at,
+            'loc_time': int(self.updated_at),
             'height': self.location_status.get('alt'),
             'direction': int(self.location_status.get('dir', 0)),
             'speed': self._attr_extra_state_attributes.get('speed', 0),
             'coord_type_input': 'wgs84',
         }
         url = 'https://yingyan.baidu.com/api/v3/track/addpoint'
+        jss = None
         try:
             res = await self.device.http.post(url, data=pms)
-            rdt = await res.json() or {}
+            jss = await res.text()
+            rdt = json.loads(jss) or {}
             if not rdt or rdt.get('status'):
-                _LOGGER.warning('Update to baidu yingyan: %s', [pms, await res.text()])
+                _LOGGER.warning('Update to baidu yingyan: %s', [pms, jss])
         except (ClientConnectorError, Exception) as exc:
-            _LOGGER.warning('Update to baidu yingyan: %s', exc)
+            _LOGGER.warning('Update to baidu yingyan: %s', [pms, jss, exc])
 
 
 def hav(theta):
