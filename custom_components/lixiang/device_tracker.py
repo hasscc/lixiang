@@ -110,18 +110,18 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             return None
         # https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/protocol/OsmAndProtocolDecoder.java
         # https://github.com/traccar/traccar/blob/master/src/main/java/org/traccar/model/Position.java
+        # http://demo.traccar.org:5055?id=123456&lat={0}&lon={1}&timestamp={2}&hdop={3}&altitude={4}&speed={5}
         pms = {
             'id': did,
-            'timestamp': self.updated_at,
+            'timestamp': int(self.updated_at * 1000),
             'lat': self.latitude,
             'lon': self.longitude,
-            'loc_time': self.updated_at,
             'altitude': self.location_status.get('alt'),
             'heading': self.location_status.get('dir'),
             'speed': self._attr_extra_state_attributes.get('speed', 0) * KNOTS_TO_KPH_RATIO,  # km/h -> knots
             'batt': self.battery_level,
-            'fuel': self.device.endurance_attrs().get('residueFuel'),
-            'totalDistance': self.device.mileage_attrs().get('totalMileage'),
+            'fuel': self.device.to_number(self.device.endurance_attrs().get('residueFuel')),
+            'totalDistance': self.device.to_number(self.device.mileage_attrs().get('totalMileage')),
             'deviceTemp': self.device.indoor_temperature,
         }
         pms = {
@@ -131,7 +131,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
         }
         url = f'http://{host}'
         try:
-            await self.device.http.get(url, data=pms)
+            await self.device.http.get(url, params=pms)
         except (ClientConnectorError, Exception) as exc:
             _LOGGER.warning('Update to traccar: %s', [pms, exc])
 
