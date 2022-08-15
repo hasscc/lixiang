@@ -42,6 +42,30 @@ class CarCameraEntity(BaseEntity, CameraEntity):
         CameraEntity.__init__(self)
         self.access_tokens = collections.deque(self.access_tokens, 12 * 2)
 
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
+        self._vars['location_update_unsub'] = self.hass.bus.async_listen(
+            f'{DOMAIN}.location_updated',
+            self.async_update_event_handler,
+        )
+
+    async def async_will_remove_from_hass(self):
+        """Run when entity will be removed from hass.
+        To be extended by integrations.
+        """
+        await super().async_will_remove_from_hass()
+        if unsub := self._vars.pop('location_update_unsub', None):
+            unsub()
+
+    async def async_update_event_handler(self, event):
+        if self.device.vin != event.data.get('vin'):
+            return
+        if self.device.gear != 'P':
+            return
+        if self.device.ac_onoff:
+            return
+        await self.async_update()
+
     async def async_update(self):
         await self.device.update_photos()
         await self.device.update_entities()

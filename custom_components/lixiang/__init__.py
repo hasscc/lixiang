@@ -461,6 +461,14 @@ class BaseDevice:
         return self.car_status.get('temperatureStatus') or {}
 
     @property
+    def ac_status(self):
+        return self.car_status.get('airConditioningStatus') or {}
+
+    @property
+    def ac_onoff(self):
+        return self.to_number(self.ac_status.get('acOffStatus', {}).get('value'), 0)
+
+    @property
     def location_status(self):
         return self.car_status.get('locationStatus') or {}
 
@@ -769,6 +777,7 @@ class BaseEntity(Entity):
             'manufacturer': 'LiXiang',
         }
         self._attr_extra_state_attributes = {}
+        self._vars = {}
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()

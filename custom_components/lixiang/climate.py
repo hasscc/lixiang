@@ -51,7 +51,7 @@ class CarAcEntity(XClimateEntity):
 
     @property
     def ac_status(self):
-        return self.device.car_status.get('airConditioningStatus') or {}
+        return self.device.ac_status
 
     def get_status(self, key=None, default=None):
         dat = self.ac_status
@@ -74,7 +74,7 @@ class CarAcEntity(XClimateEntity):
         elif self.get_status('acHeatReq'):
             self._attr_hvac_mode = HVACMode.HEAT
             self._attr_hvac_action = HVACAction.HEATING
-        elif not self.get_status('acOffStatus'):
+        elif not self.device.ac_onoff:
             self._attr_hvac_mode = HVACMode.OFF
             self._attr_hvac_action = HVACAction.OFF
 

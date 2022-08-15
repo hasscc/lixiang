@@ -56,6 +56,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
 
             self._prev_updated = tim
             self._prev_location = (self.latitude, self.longitude)
+            self.hass.bus.fire(f'{DOMAIN}.location_updated', {'vin': self.device.vin})
 
     @property
     def battery_level(self):
