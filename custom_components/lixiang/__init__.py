@@ -346,10 +346,25 @@ class BaseDevice:
 
     @property
     def status(self):
-        return ''
+        vos = self.car_status.get('vehOnlineStatus') or {}
+        sta = vos.get('deviceStatus') or vos.get('status', '')
+        return f'{sta}'.lower()
 
     def status_attrs(self):
-        return self.car_status
+        adt = self.car_status.get('vehOnlineStatus') or {}
+        kls = [
+            'vehPowerMode',
+            'remoteStartStatus',
+            'caseCoverStatus',
+            'keyInCarWarning',
+            'forgetCloseDoorWarning',
+            'vehRealtimeAlarm',
+            'vehRealtimeMaint',
+            'otaUpgradeInfo',
+        ]
+        for k in kls:
+            adt[k] = self.car_status.get(k, {})
+        return adt
 
     @property
     def charge(self):
@@ -553,6 +568,10 @@ class BaseDevice:
     def hass_sensor(self):
         from .sensor import SensorStateClass
         dat = {
+            'status': {
+                'icon': 'mdi:car',
+                'attrs': self.status_attrs,
+            },
             'mileage': {
                 'icon': 'mdi:gauge',
                 'unit': LENGTH_KILOMETERS,
