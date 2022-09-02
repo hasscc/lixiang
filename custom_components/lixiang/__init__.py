@@ -773,7 +773,8 @@ class BaseEntity(Entity):
         self._attr_device_info = {
             'identifiers': {(DOMAIN, self._attr_device_id)},
             'name': device.name,
-            'model': 'ONE',
+            'model': 'LiXiang',
+            'sw_version': device.car_status.get('otaUpgradeInfo', {}).get('baseVersion'),
             'manufacturer': 'LiXiang',
         }
         self._attr_extra_state_attributes = {}

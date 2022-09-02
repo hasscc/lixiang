@@ -75,7 +75,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                         self.config_entry, data={**self.config_entry.data, **user_input}
                     )
                     return self.async_create_entry(title='', data={})
-                self.context['last_error'] = f'：```{car.car_status}```'
+                self.context['last_error'] = f'```{car.car_status}```'
             errors['base'] = 'cannot_access'
         user_input = {
             **self.config_entry.data,
