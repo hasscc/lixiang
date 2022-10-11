@@ -409,6 +409,10 @@ class BaseDevice:
         return self.to_number(self.endurance_attrs().get('residueBattery'))
 
     @property
+    def fuel_level(self):
+        return self.to_number(self.endurance_attrs().get('residueFuel'))
+
+    @property
     def door_opened(self):
         cnt = 0
         for v in self.doors_attrs().values():
@@ -590,6 +594,10 @@ class BaseDevice:
             },
             'battery': {
                 'class': DEVICE_CLASS_BATTERY,
+                'unit': PERCENTAGE,
+                'state_class': SensorStateClass.MEASUREMENT,
+            },
+            'fuel_level': {
                 'unit': PERCENTAGE,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
