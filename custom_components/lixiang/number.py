@@ -30,32 +30,21 @@ async def async_setup_platform(hass: HomeAssistant, config, async_add_entities, 
 
 
 class XNumberEntity(BaseEntity, NumberEntity):
-    _attr_value = None
     _attr_native_value = None
-    _attr_max_value = None
-    _attr_min_value = None
-    _attr_step = None
 
     def __init__(self, name, device: BaseDevice, option=None):
         super().__init__(name, device, option)
-        self._attr_max_value = self._option.get('max')
-        self._attr_min_value = self._option.get('min')
-        self._attr_step = self._option.get('step', 1)
-        self._attr_native_max_value = self._attr_max_value
-        self._attr_native_min_value = self._attr_min_value
-        self._attr_native_step = self._attr_step
+        self._attr_native_max_value = self._option.get('max')
+        self._attr_native_min_value = self._option.get('min')
+        self._attr_native_step = self._option.get('step', 1)
 
     async def update_from_device(self):
         await super().update_from_device()
         try:
-            self._attr_value = self._attr_state
+            val = self._attr_state
         except (TypeError, ValueError):
-            self._attr_value = None
-        self._attr_native_value = self._attr_value or 0
-
-    async def async_set_value(self, value: float):
-        """Set new value."""
-        return await self.async_set_native_value(value)
+            val = None
+        self._attr_native_value = val or 0
 
     async def async_set_native_value(self, value: float):
         """Set new value."""
