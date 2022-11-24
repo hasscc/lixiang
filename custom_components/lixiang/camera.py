@@ -5,7 +5,7 @@ import collections
 import io
 from PIL import Image, ImageDraw, ImageFont
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.components.camera import (
     Camera as CameraEntity,
     DOMAIN as ENTITY_DOMAIN,
@@ -15,7 +15,7 @@ from . import (
     DOMAIN,
     BaseDevice,
     BaseEntity,
-    async_setup_devices,
+    async_setup_device,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,13 +24,11 @@ DATA_KEY = f'{ENTITY_DOMAIN}.{DOMAIN}'
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    cfg = {**config_entry.data, **config_entry.options}
-    await async_setup_platform(hass, cfg, async_add_entities)
+    await async_setup_device(hass, config_entry, ENTITY_DOMAIN, async_add_entities)
 
 
-async def async_setup_platform(hass: HomeAssistant, config, async_add_entities, discovery_info=None):
-    hass.data[DOMAIN]['add_entities'][ENTITY_DOMAIN] = async_add_entities
-    await async_setup_devices(hass, ENTITY_DOMAIN, async_add_entities)
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    await async_setup_device(hass, config, ENTITY_DOMAIN, async_add_entities)
 
 
 class CarCameraEntity(BaseEntity, CameraEntity):

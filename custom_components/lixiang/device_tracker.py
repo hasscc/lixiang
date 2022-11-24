@@ -3,7 +3,6 @@ import logging
 import json
 from math import sin, asin, cos, radians, fabs, sqrt
 
-from homeassistant.core import HomeAssistant
 from homeassistant.components.device_tracker.config_entry import (
     TrackerEntity,
     DOMAIN as ENTITY_DOMAIN,
@@ -14,7 +13,7 @@ from aiohttp.client_exceptions import ClientConnectorError
 from . import (
     DOMAIN,
     BaseEntity,
-    async_setup_devices,
+    async_setup_device,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -25,13 +24,11 @@ KNOTS_TO_KPH_RATIO = 0.539957
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    cfg = {**config_entry.data, **config_entry.options}
-    await async_setup_platform(hass, cfg, async_add_entities)
+    await async_setup_device(hass, config_entry, ENTITY_DOMAIN, async_add_entities)
 
 
-async def async_setup_platform(hass: HomeAssistant, config, async_add_entities, discovery_info=None):
-    hass.data[DOMAIN]['add_entities'][ENTITY_DOMAIN] = async_add_entities
-    await async_setup_devices(hass, ENTITY_DOMAIN, async_add_entities)
+async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
+    await async_setup_device(hass, config, ENTITY_DOMAIN, async_add_entities)
 
 
 class CarTrackerEntity(BaseEntity, TrackerEntity):

@@ -1,13 +1,18 @@
 # 🚙 LiXiang Auto for HomeAssistant
 
 
+> **Note**
+> 
+> 目前仅支持理想One，不支持L8、L9
+
+
 <a name="install"></a>
 ## 安装/更新
 
 #### 方法1: 通过`Samba`或`SFTP`手动安装
 > 下载解压并复制`custom_components/lixiang`文件夹到HA根目录下的`custom_components`文件夹
 
-#### 方法2: 通过`SSH`或`Terminal & SSH`加载项执行一键安装命令
+#### 方法2: 通过`SSH`或`Terminal & SSH`加载项执行一键安装命令（暂不可用）
 ```shell
 wget -O - https://ghproxy.com/raw.githubusercontent.com/hasscc/get/main/get | HUB_DOMAIN=ghproxy.com/github.com DOMAIN=lixiang REPO_PATH=hasscc/lixiang ARCHIVE_TAG=main bash -
 ```
@@ -32,7 +37,11 @@ wget -O - https://ghproxy.com/raw.githubusercontent.com/hasscc/get/main/get | HU
   - 抓包获取请求头信息中的`x-chj-token` (`APP-`开头)
   - 小号登陆APP是看不到车辆的，因此通过小号接入的车辆在HA中无法控制空调和寻车，仅可查看状态
   - 理想不允许同一账号登陆多设备，需要控制空调等需要自己想办法抓取主账号的token
-
+- iOS使用`Quantumult X`抓包
+  - MitM > 生成证书 > 配置证书 > 信任描述文件
+  - MitM > 主机名: `*.lixiang.com`
+  - 工具&分析 > HTTP抓取 > 信任证书
+  - 此方法支持寻车、控制空调
 
 <a name="option"></a>
 ## 选项

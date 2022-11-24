@@ -25,7 +25,7 @@ from homeassistant.components import persistent_notification
 from homeassistant.util.dt import DEFAULT_TIME_ZONE
 import homeassistant.helpers.config_validation as cv
 from asyncio import TimeoutError
-from aiohttp import ClientConnectorError
+from aiohttp import ClientConnectorError, ClientResponseError
 
 from .const import *
 
@@ -83,12 +83,7 @@ async def async_setup(hass: HomeAssistant, hass_config: dict):
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     init_integration_data(hass)
-    cfg = {
-        **config_entry.data,
-        **config_entry.options,
-        'config_entry': config_entry,
-    }
-    if car := get_car_from_config(hass, cfg):
+    if car := get_car_from_config(hass, config_entry):
         await car.update_coordinator_first()
 
     for platform in SUPPORTED_DOMAINS:
@@ -117,16 +112,26 @@ async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     return unload_ok
 
 
-async def async_setup_devices(hass: HomeAssistant, domain, add_entities=None):
-    for car in hass.data[DOMAIN][CONF_CARS].values():
-        if add_entities:
-            car.add_entities[domain] = add_entities
+async def async_setup_device(hass: HomeAssistant, config, domain, add_entities=None):
+    if car := get_car_from_config(hass, config):
+        if eid := car.get_config('entry_id'):
+            hass.data[DOMAIN]['add_entities'].setdefault(eid, {})
+            hass.data[DOMAIN]['add_entities'][eid][domain] = add_entities
+        else:
+            hass.data[DOMAIN]['add_entities'][domain] = add_entities
         await car.update_hass_entities(domain)
 
 
-def get_car_from_config(hass, cfg, renew=False):
-    if isinstance(cfg, ConfigEntry):
-        cfg = {**cfg.data, **cfg.options}
+def get_car_from_config(hass, config, renew=False):
+    if isinstance(config, ConfigEntry):
+        cfg = {
+            **config.data,
+            **config.options,
+            'entry_id': config.entry_id,
+            'config_entry': config,
+        }
+    else:
+        cfg = config
     if not isinstance(cfg, dict):
         return None
     vin = cfg.get(CONF_VIN)
@@ -217,7 +222,6 @@ class BaseDevice:
         self.tire_status = {}
         self.energy_cost = {}
         self.park_photos = {}
-        self.add_entities = hass.data[DOMAIN].get('add_entities') or {}
         self.http = aiohttp_client.async_create_clientsession(hass, auto_cleanup=False)
 
         self.coordinators = {
@@ -248,6 +252,12 @@ class BaseDevice:
     def _handle_listeners(self):
         for fun in self.listeners.values():
             fun()
+
+    def get_adder(self, domain):
+        als = self.hass.data[DOMAIN].get('add_entities') or {}
+        if eid := self.get_config('entry_id'):
+            als = als.get(eid) or als
+        return als.get(domain)
 
     def get_config(self, key, default=None):
         return self.config.get(key, default)
@@ -712,7 +722,7 @@ class BaseDevice:
         from .select import XSelectEntity
         from .number import XNumberEntity
         hdk = f'hass_{domain}'
-        add = self.add_entities.get(domain)
+        add = self.get_adder(domain)
         if not add or not hasattr(self, hdk):
             return
         for k, cfg in getattr(self, hdk).items():
@@ -770,9 +780,15 @@ class BaseDevice:
             'x-chj-traceid': str(uuid.uuid4()),
             'x-chj-metadata': '{"language":"zh","code":"102004"}',
         }
+        rsp = None
         try:
             rsp = await self.http.request(how, uri, data=jso, headers=hds)
             dat = await rsp.json() or {}
+        except ClientResponseError as exc:
+            dat = {}
+            if rsp:
+                txt = await rsp.text()
+                _LOGGER.error('Request api failed: %s', [api, pms, kwargs, exc, txt])
         except (ClientConnectorError, TimeoutError) as exc:
             dat = {}
             _LOGGER.error('Request api failed: %s', [api, pms, kwargs, exc])
@@ -797,11 +813,12 @@ class BaseEntity(Entity):
         self._attr_icon = self._option.get('icon')
         self._attr_device_class = self._option.get('class')
         self._attr_unit_of_measurement = self._option.get('unit')
+        ota = device.car_status.get('otaUpgradeInfo') or {}
         self._attr_device_info = {
             'identifiers': {(DOMAIN, self._attr_device_id)},
             'name': device.name,
             'model': 'LiXiang',
-            'sw_version': device.car_status.get('otaUpgradeInfo', {}).get('baseVersion'),
+            'sw_version': ota.get('baseVersion'),
             'manufacturer': 'LiXiang',
         }
         self._attr_extra_state_attributes = {}
@@ -809,7 +826,7 @@ class BaseEntity(Entity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
-        await self.async_update()
+        await self.update_from_device()
         self.hass.data[DOMAIN][CONF_ENTITIES][self.entity_id] = self
         self.device.listeners[self.entity_id] = self._handle_coordinator_update
         self._handle_coordinator_update()
