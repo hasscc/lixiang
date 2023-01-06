@@ -541,11 +541,22 @@ class BaseDevice:
 
     @property
     def wheel_warm(self):
-        return self.to_number(self.wheel_warm_attrs.get('warmOnOff'), 0)
+        return self.to_number(self.wheel_warm_attrs().get('warmOnOff'), 0)
 
-    @property
     def wheel_warm_attrs(self):
         return self.car_status.get('wheelWarmStatus') or {}
+
+    @property
+    def seat_status(self):
+        return self.car_status.get('seatStatus') or {}
+
+    @property
+    def main_seat_cool(self):
+        return self.to_number(self.seat_status.get('flSeatHeatVent'), 0) >= 4
+
+    @property
+    def copilot_seat_cool(self):
+        return self.to_number(self.seat_status.get('frSeatHeatVent'), 0) >= 4
 
     @property
     def location_status(self):
@@ -724,12 +735,12 @@ class BaseDevice:
 
     @property
     def hass_switch(self):
-        from .switch import RemoteControlSwitchEntity, AcCtrlSwitchEntity
+        from .switch import RemoteCtrlSwitchEntity, AcCtrlSwitchEntity
         return {
             'door_lock': {
                 'icon': 'mdi:lock',
                 'attrs': self.door_unlocked_attrs,
-                'entity': RemoteControlSwitchEntity,
+                'entity': RemoteCtrlSwitchEntity,
                 'on_cmd': 'remote_central_lock_unlock',
                 'off_cmd': 'remote_central_lock_lock',
             },
@@ -739,6 +750,18 @@ class BaseDevice:
                 'entity': AcCtrlSwitchEntity,
                 'off_type': 1,
                 'on_type': 2,
+            },
+            'main_seat_cool': {
+                'icon': 'mdi:car-seat-cooler',
+                'entity': AcCtrlSwitchEntity,
+                'off_type': 3,
+                'on_type': 25,
+            },
+            'copilot_seat_cool': {
+                'icon': 'mdi:car-seat-cooler',
+                'entity': AcCtrlSwitchEntity,
+                'off_type': 7,
+                'on_type': 27,
             },
         }
 

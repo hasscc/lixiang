@@ -60,7 +60,7 @@ class XSwitchEntity(BaseEntity, SwitchEntity):
         return await self.async_turn_switch(False)
 
 
-class RemoteControlSwitchEntity(XSwitchEntity):
+class RemoteCtrlSwitchEntity(XSwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn the entity on."""

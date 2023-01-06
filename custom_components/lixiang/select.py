@@ -46,3 +46,22 @@ class XSelectEntity(BaseEntity, SelectEntity):
     async def async_select_option(self, option: str):
         """Change the selected option."""
         return await self.hass.async_add_executor_job(self.select_option, option)
+
+
+class RemoteCtrlSelectEntity(XSelectEntity):
+
+    async def async_select_option(self, option: str):
+        """Change the selected option."""
+        cmd = None
+        dat = None
+        if isinstance(self._options, dict):
+            for k, v in self._options.items():
+                opt = v if isinstance(v, dict) else {'name': v}
+                if option == opt.get('name', k):
+                    cmd = k
+                    dat = opt.get('data')
+                    break
+        if not cmd:
+            _LOGGER.warning('%s: Remote control failed: %s not in %s', self.name, option, self._options)
+            return False
+        return await self.device.remote_control(cmd, dat)
