@@ -662,11 +662,11 @@ class BaseDevice:
     @property
     def hass_sensor(self):
         from .sensor import SensorStateClass
+        from homeassistant.components.sensor import SensorDeviceClass
         dat = {
             'status': {
                 'icon': 'mdi:car',
                 'attrs': self.status_attrs,
-                'picture': self.get_info('mainPictureUrl') or None,
             },
             'mileage': {
                 'icon': 'mdi:gauge',
@@ -686,12 +686,13 @@ class BaseDevice:
                 'category': EntityCategory.DIAGNOSTIC,
             },
             'battery': {
-                'class': DEVICE_CLASS_BATTERY,
+                'class': SensorDeviceClass.BATTERY,
                 'unit': PERCENTAGE,
                 'category': EntityCategory.DIAGNOSTIC,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'fuel_level': {
+                'icon': 'mdi:gas-station',
                 'unit': PERCENTAGE,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
@@ -711,17 +712,17 @@ class BaseDevice:
                 'category': EntityCategory.DIAGNOSTIC,
             },
             'indoor_temperature': {
-                'class': DEVICE_CLASS_TEMPERATURE,
+                'class': SensorDeviceClass.TEMPERATURE,
                 'unit': TEMP_CELSIUS,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'outdoor_temperature': {
-                'class': DEVICE_CLASS_TEMPERATURE,
+                'class': SensorDeviceClass.TEMPERATURE,
                 'unit': TEMP_CELSIUS,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'pm25': {
-                'class': DEVICE_CLASS_PM25,
+                'class': SensorDeviceClass.PM25,
                 'unit': CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
@@ -734,7 +735,7 @@ class BaseDevice:
                 'category': EntityCategory.DIAGNOSTIC,
             },
             'monthly_elec': {
-                'class': DEVICE_CLASS_ENERGY,
+                'class': SensorDeviceClass.ENERGY,
                 'unit': ENERGY_KILO_WATT_HOUR,
                 'icon': 'mdi:car-electric',
                 'attrs': self.monthly_elec_attrs,
@@ -742,7 +743,7 @@ class BaseDevice:
             },
             'monthly_fuel': {
                 'unit': VOLUME_LITERS,
-                'icon': 'mdi:gas-station',
+                'icon': 'mdi:fuel',
                 'attrs': self.monthly_fuel_attrs,
                 'state_class': SensorStateClass.TOTAL_INCREASING,
             },
@@ -756,6 +757,7 @@ class BaseDevice:
             'location': {
                 'attrs': self.location_attrs,
                 'entity': CarTrackerEntity,
+                'picture': self.get_info('mainPictureUrl') or None,
             },
         }
 

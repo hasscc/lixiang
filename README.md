@@ -24,7 +24,7 @@ wget -O - https://ghproxy.com/raw.githubusercontent.com/hasscc/get/main/get | HU
 > [⚙️ 配置](https://my.home-assistant.io/redirect/config) > 设备与服务 > [🧩 集成](https://my.home-assistant.io/redirect/integrations) > [➕ 添加集成](https://my.home-assistant.io/redirect/config_flow_start?domain=lixiang) > 🔍 搜索 `理想汽车`
 
 ### 获取Token/Sign等配置选项
-- 安卓模拟器抓包获取
+- 安卓模拟器抓包获取 (已失效)
   - [网易MuMu模拟器](https://mumu.163.com) (安卓6.0)
   - [理想汽车APP v5.11](https://www.wandoujia.com/apps/7954884/history_v1030) (v5.12以上需要安卓7.0)
   - 注册一个理想APP小号
