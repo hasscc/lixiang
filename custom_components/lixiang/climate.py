@@ -81,27 +81,20 @@ class CarAcEntity(XClimateEntity):
         self._attr_fan_modes = list(range(1, 8))
         self._attr_extra_state_attributes = self.ac_status
 
-    async def async_control(self, typ, temp):
-        dat = {
-            'Type': str(typ),
-            'Temp': str(temp),
-        }
-        return await self.device.remote_control('remote_ac_ctrl_new', dat)
-
     async def async_turn_on(self, **kwargs):
         """Turn the entity on."""
-        return await self.async_control(22, self._attr_target_temperature or '26.0')
+        return await self.device.ac_control(22, self._attr_target_temperature or '26.0')
 
     async def async_turn_off(self, **kwargs):
         """Turn the entity off."""
-        return await self.async_control(20, self._attr_target_temperature or '26.0')
+        return await self.device.ac_control(20, self._attr_target_temperature or '26.0')
 
     async def async_set_temperature(self, **kwargs):
         """Set new target temperature."""
         ret = False
         if ATTR_TEMPERATURE in kwargs:
             num = kwargs[ATTR_TEMPERATURE]
-            if ret := await self.async_control(21, num):
+            if ret := await self.device.ac_control(21, num):
                 self._attr_target_temperature = num
         return ret
 
@@ -109,9 +102,9 @@ class CarAcEntity(XClimateEntity):
         if hvac_mode == HVACMode.OFF:
             return await self.async_turn_off()
         if hvac_mode == HVACMode.AUTO:
-            return await self.async_control(22, self._attr_target_temperature or '26.0')
+            return await self.device.ac_control(22, self._attr_target_temperature or '26.0')
         if hvac_mode == HVACMode.COOL:
-            return await self.async_control(31, '16.0')
+            return await self.device.ac_control(31, '16.0')
         if hvac_mode == HVACMode.HEAT:
-            return await self.async_control(29, '32.0')
+            return await self.device.ac_control(29, '32.0')
         return False

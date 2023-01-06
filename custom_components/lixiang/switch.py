@@ -9,6 +9,7 @@ from homeassistant.components.switch import (
 
 from . import (
     DOMAIN,
+    BaseDevice,
     BaseEntity,
     async_setup_device,
 )
@@ -59,12 +60,33 @@ class XSwitchEntity(BaseEntity, SwitchEntity):
         return await self.async_turn_switch(False)
 
 
-class DoorLockEntity(XSwitchEntity):
+class RemoteControlSwitchEntity(XSwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn the entity on."""
-        return await self.device.remote_control('remote_central_lock_unlock')
+        if cmd := self._option.get('on_cmd'):
+            return await self.device.remote_control(cmd, self._option.get('on_data'))
 
     async def async_turn_off(self, **kwargs):
         """Turn the entity off."""
-        return await self.device.remote_control('remote_central_lock_lock')
+        if cmd := self._option.get('off_cmd'):
+            return await self.device.remote_control(cmd, self._option.get('off_data'))
+
+
+class AcCtrlSwitchEntity(XSwitchEntity):
+
+    @property
+    def target_temp(self):
+        return BaseDevice.to_number(self.device.ac_status.get('acFLTempStatus', {}).get('value')) or '23.5'
+
+    async def async_turn_on(self, **kwargs):
+        """Turn the entity on."""
+        if typ := self._option.get('on_type'):
+            return await self.device.ac_control(typ, self.target_temp)
+        return False
+
+    async def async_turn_off(self, **kwargs):
+        """Turn the entity off."""
+        if typ := self._option.get('off_type'):
+            return await self.device.ac_control(typ, self.target_temp)
+        return False

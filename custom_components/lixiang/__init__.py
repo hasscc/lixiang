@@ -362,6 +362,13 @@ class BaseDevice:
     async def remote_search(self, **kwargs):
         return self.remote_control('remote_veh_search')
 
+    async def ac_control(self, typ, temp):
+        dat = {
+            'Type': str(typ),
+            'Temp': str(temp),
+        }
+        return await self.remote_control('remote_ac_ctrl_new', dat)
+
     async def remote_control(self, cmd, data=None, **kwargs):
         api = '/ssp-as-mobile-api/v3-0/remote-vehicle-control/send-command'
         pms = {
@@ -531,6 +538,14 @@ class BaseDevice:
     @property
     def ac_onoff(self):
         return self.to_number(self.ac_status.get('acOffStatus', {}).get('value'), 0)
+
+    @property
+    def wheel_warm(self):
+        return self.to_number(self.wheel_warm_attrs.get('warmOnOff'), 0)
+
+    @property
+    def wheel_warm_attrs(self):
+        return self.car_status.get('wheelWarmStatus') or {}
 
     @property
     def location_status(self):
@@ -709,12 +724,21 @@ class BaseDevice:
 
     @property
     def hass_switch(self):
-        from .switch import DoorLockEntity
+        from .switch import RemoteControlSwitchEntity, AcCtrlSwitchEntity
         return {
             'door_lock': {
                 'icon': 'mdi:lock',
                 'attrs': self.door_unlocked_attrs,
-                'entity': DoorLockEntity,
+                'entity': RemoteControlSwitchEntity,
+                'on_cmd': 'remote_central_lock_unlock',
+                'off_cmd': 'remote_central_lock_lock',
+            },
+            'wheel_warm': {
+                'icon': 'mdi:steering',
+                'attrs': self.wheel_warm_attrs,
+                'entity': AcCtrlSwitchEntity,
+                'off_type': 1,
+                'on_type': 2,
             },
         }
 
