@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.const import *
 from homeassistant.config import DATA_CUSTOMIZE
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import aiohttp_client
+from homeassistant.helpers import aiohttp_client, device_registry
 from homeassistant.helpers.entity import Entity, EntityCategory
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -289,6 +289,17 @@ class BaseDevice:
         model = self.get_info('variableModel') or ''
         return f'{series} {model}'.strip()
 
+    @property
+    def hass_device_id(self):
+        if did := self.config.get('hass_device_id'):
+            return did
+        registry = device_registry.async_get(self.hass)
+        device = registry.async_get_device({(DOMAIN, self.vin)})
+        if not device:
+            return None
+        self.config['hass_device_id'] = device.id
+        return device.id
+
     async def update_entities(self):
         for ent in self.entities.values():
             await ent.update_from_device()
@@ -416,6 +427,7 @@ class BaseDevice:
         ]
         for k in kls:
             adt[k] = self.car_status.get(k, {})
+        adt['hass_device_id'] = self.hass_device_id
         return adt
 
     @property
