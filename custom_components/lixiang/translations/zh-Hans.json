@@ -1,4 +1,44 @@
 {
+  "config": {
+    "step": {
+      "user": {
+        "title": "理想汽车",
+        "description": "{tip}",
+        "data": {
+          "vin": "车架号",
+          "name": "名称",
+          "api_key": "x-chj-key",
+          "api_sign": "x-chj-sign",
+          "api_token": "x-chj-token",
+          "device_id": "x-chj-deviceid"
+        }
+      }
+    },
+    "error": {
+      "cannot_access": "获取车辆信息失败"
+    },
+    "abort": {
+      "already_configured": "同一车辆不能重复集成"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "理想汽车",
+        "description": "{tip}",
+        "data": {
+          "name": "名称",
+          "api_key": "x-chj-key",
+          "api_sign": "x-chj-sign",
+          "api_token": "x-chj-token",
+          "device_id": "x-chj-deviceid"
+        }
+      }
+    },
+    "error": {
+      "cannot_access": "获取车辆信息失败"
+    }
+  },
   "entity": {
     "select": {
       "heat_levels": {
