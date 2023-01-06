@@ -34,16 +34,19 @@ class LiXiangConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is None:
             user_input = {}
         if user_input.get(CONF_VIN):
-            if car := get_car_from_config(self.hass, user_input):
-                await car.update_status()
-                if car.car_status and not car.car_status.get('code'):
+            if car := get_car_from_config(self.hass, user_input, renew=True):
+                inf = await car.update_vehicle_info(car.vin)
+                if inf and inf.get(CONF_VIN):
                     await self.async_set_unique_id(f'{DOMAIN}-{car.vin}')
                     self._abort_if_unique_id_configured()
+                    user_input['info'] = inf
+                    if not user_input.get(CONF_NAME):
+                        user_input[CONF_NAME] = inf.get('vehicleNickname') or ''
                     return self.async_create_entry(
                         title=user_input.get(CONF_NAME) or DEFAULT_NAME,
                         data=user_input,
                     )
-                self.context['last_error'] = f'```{car.car_status}```'
+                self.context['last_error'] = f'```{inf}```'
             errors['base'] = 'cannot_access'
         return self.async_show_form(
             step_id='user',
@@ -68,14 +71,17 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             user_input = {}
         if user_input.get(CONF_API_TOKEN):
             vin = self.config_entry.data.get(CONF_VIN)
-            if car := get_car_from_config(self.hass, {**user_input, CONF_VIN: vin}):
-                await car.update_status()
-                if car.car_status and not car.car_status.get('code'):
+            if car := get_car_from_config(self.hass, {**user_input, CONF_VIN: vin}, renew=True):
+                inf = await car.update_vehicle_info(car.vin)
+                if inf and inf.get(CONF_VIN):
+                    user_input['info'] = inf
+                    if not user_input.get(CONF_NAME):
+                        user_input[CONF_NAME] = inf.get('vehicleNickname') or ''
                     self.hass.config_entries.async_update_entry(
                         self.config_entry, data={**self.config_entry.data, **user_input}
                     )
                     return self.async_create_entry(title='', data={})
-                self.context['last_error'] = f'```{car.car_status}```'
+                self.context['last_error'] = f'```{inf}```'
             errors['base'] = 'cannot_access'
         user_input = {
             **self.config_entry.data,

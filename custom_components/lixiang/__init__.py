@@ -217,6 +217,7 @@ class BaseDevice:
         self.config = config
         self.entities = {}
         self.listeners = {}
+        self.car_info = {}
         self.car_status = {}
         self.car_mileage = {}
         self.tire_status = {}
@@ -262,6 +263,9 @@ class BaseDevice:
     def get_config(self, key, default=None):
         return self.config.get(key, default)
 
+    def get_info(self, key, default=None):
+        return self.config.get('info', {}).get(key, default)
+
     @property
     def update_interval(self):
         return self.get_config(CONF_SCAN_INTERVAL, SCAN_INTERVAL)
@@ -277,7 +281,13 @@ class BaseDevice:
 
     @property
     def name(self):
-        return self.config.get(CONF_NAME, 'LiXiang')
+        return self.config.get(CONF_NAME) or self.get_info('plateNumber') or 'LiXiang'
+
+    @property
+    def model_desc(self):
+        series = self.get_info('carSeries') or 'LiXiang'
+        model = self.get_info('variableModel') or ''
+        return f'{series} {model}'.strip()
 
     async def update_entities(self):
         for ent in self.entities.values():
@@ -295,10 +305,21 @@ class BaseDevice:
         await self.update_entities()
 
     async def update_coordinator_first(self):
+        if not self.car_info:
+            await self.update_vehicle_info()
         for v in self.coordinators.values():
             if coo := v.get('coordinator'):
                 await coo.async_config_entry_first_refresh()
         await self.update_photos()
+
+    async def update_vehicle_info(self, vin=None):
+        if vin is None:
+            vin = self.vin
+        if not vin:
+            return {}
+        api = f'/aisp-account-api/v1-0/vehicles/{vin}'
+        self.car_info = await self.async_request(api) or {}
+        return self.car_info
 
     async def update_status(self):
         api = f'/ssp-as-mobile-api/v3-0/vehicles/{self.vin}/real-time-state'
@@ -362,6 +383,20 @@ class BaseDevice:
 
     def status_attrs(self):
         adt = self.car_status.get('vehOnlineStatus') or {}
+        kls = [
+            'vehicleNickname',
+            'plateNumber',
+            'seriesNo',
+            'materialNumber',
+            'carModel',
+            'color',
+            'interiorName',
+            'wheelName',
+            'deviceId',
+            'electricPedal',
+        ]
+        for k in kls:
+            adt[k] = self.car_info.get(k, None)
         kls = [
             'vehPowerMode',
             'remoteStartStatus',
@@ -585,6 +620,7 @@ class BaseDevice:
             'status': {
                 'icon': 'mdi:car',
                 'attrs': self.status_attrs,
+                'picture': self.get_info('mainPictureUrl') or None,
             },
             'mileage': {
                 'icon': 'mdi:gauge',
@@ -811,15 +847,16 @@ class BaseEntity(Entity):
         self._attr_unique_id = f'{self._attr_device_id}-{name}'
         self.entity_id = f'{DOMAIN}.{device.vin_sort}_{name}'
         self._attr_icon = self._option.get('icon')
+        self._attr_entity_picture = self._option.get('picture')
         self._attr_device_class = self._option.get('class')
         self._attr_unit_of_measurement = self._option.get('unit')
         ota = device.car_status.get('otaUpgradeInfo') or {}
         self._attr_device_info = {
             'identifiers': {(DOMAIN, self._attr_device_id)},
             'name': device.name,
-            'model': 'LiXiang',
+            'model': device.model_desc,
             'sw_version': ota.get('baseVersion'),
-            'manufacturer': 'LiXiang',
+            'manufacturer': device.get_info('brandNo') or device.get_info('brand') or 'LiXiang',
         }
         self._attr_extra_state_attributes = {}
         self._vars = {}
