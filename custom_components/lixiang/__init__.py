@@ -551,12 +551,32 @@ class BaseDevice:
         return self.car_status.get('seatStatus') or {}
 
     @property
-    def main_seat_cool(self):
+    def seat_cool_main(self):
         return self.to_number(self.seat_status.get('flSeatHeatVent'), 0) >= 4
 
     @property
-    def copilot_seat_cool(self):
+    def seat_cool_copilot(self):
         return self.to_number(self.seat_status.get('frSeatHeatVent'), 0) >= 4
+
+    @property
+    def seat_heat_main(self):
+        lvl = self.to_number(self.seat_status.get('flSeatHeatVent'), 0)
+        return (lvl + 3) if lvl <= 3 else 3
+
+    @property
+    def seat_heat_copilot(self):
+        lvl = self.to_number(self.seat_status.get('frSeatHeatVent'), 0)
+        return (lvl + 7) if lvl <= 3 else 7
+
+    @property
+    def seat_heat_back_left(self):
+        lvl = self.to_number(self.seat_status.get('rlSeatHeatVent'), 0)
+        return (lvl + 11) if lvl <= 3 else 11
+
+    @property
+    def seat_heat_back_right(self):
+        lvl = self.to_number(self.seat_status.get('rrSeatHeatVent'), 0)
+        return (lvl + 15) if lvl <= 3 else 15
 
     @property
     def location_status(self):
@@ -751,13 +771,13 @@ class BaseDevice:
                 'off_type': 1,
                 'on_type': 2,
             },
-            'main_seat_cool': {
+            'seat_cool_main': {
                 'icon': 'mdi:car-seat-cooler',
                 'entity': AcCtrlSwitchEntity,
                 'off_type': 3,
                 'on_type': 25,
             },
-            'copilot_seat_cool': {
+            'seat_cool_copilot': {
                 'icon': 'mdi:car-seat-cooler',
                 'entity': AcCtrlSwitchEntity,
                 'off_type': 7,
@@ -794,6 +814,56 @@ class BaseDevice:
             'photos': {
                 'attrs': self.parking_photos,
                 'entity': CarCameraEntity,
+            },
+        }
+
+    @property
+    def hass_select(self):
+        from .select import RemoteCtrlSelectEntity
+        return {
+            'seat_heat_main': {
+                'icon': 'mdi:car-seat-heater',
+                'entity': RemoteCtrlSelectEntity,
+                'options': {
+                    3: 'off',
+                    4: '1',
+                    5: '2',
+                    6: '3',
+                },
+                'translation_key': 'heat_levels',
+            },
+            'seat_heat_copilot': {
+                'icon': 'mdi:car-seat-heater',
+                'entity': RemoteCtrlSelectEntity,
+                'options': {
+                    7: 'off',
+                    8: '1',
+                    9: '2',
+                    10: '3',
+                },
+                'translation_key': 'heat_levels',
+            },
+            'seat_heat_back_left': {
+                'icon': 'mdi:car-seat-heater',
+                'entity': RemoteCtrlSelectEntity,
+                'options': {
+                    11: 'off',
+                    12: '1',
+                    13: '2',
+                    14: '3',
+                },
+                'translation_key': 'heat_levels',
+            },
+            'seat_heat_back_right': {
+                'icon': 'mdi:car-seat-heater',
+                'entity': RemoteCtrlSelectEntity,
+                'options': {
+                    15: 'off',
+                    16: '1',
+                    17: '2',
+                    18: '3',
+                },
+                'translation_key': 'heat_levels',
             },
         }
 
@@ -888,7 +958,6 @@ class BaseEntity(Entity):
         self.hass = device.hass
         self._option = option or {}
         self._name = name
-        self._byte = self._option.get('byte')
         self._attr_name = f'{device.name} {name}'.strip()
         self._attr_device_id = f'{device.vin}'
         self._attr_unique_id = f'{self._attr_device_id}-{name}'
@@ -897,6 +966,7 @@ class BaseEntity(Entity):
         self._attr_entity_picture = self._option.get('picture')
         self._attr_device_class = self._option.get('class')
         self._attr_unit_of_measurement = self._option.get('unit')
+        self._attr_translation_key = self._option.get('translation_key', name)
         ota = device.car_status.get('otaUpgradeInfo') or {}
         self._attr_device_info = {
             'identifiers': {(DOMAIN, self._attr_device_id)},

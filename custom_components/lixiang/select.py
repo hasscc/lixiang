@@ -41,7 +41,10 @@ class XSelectEntity(BaseEntity, SelectEntity):
 
     async def update_from_device(self):
         await super().update_from_device()
-        self._attr_current_option = self._options.get(self._attr_state, self._attr_state)
+        opt = self._options.get(self._attr_state, self._attr_state)
+        if isinstance(opt, dict):
+            opt = opt.get('name')
+        self._attr_current_option = opt
 
     async def async_select_option(self, option: str):
         """Change the selected option."""
