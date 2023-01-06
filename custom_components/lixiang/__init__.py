@@ -14,7 +14,7 @@ from homeassistant.const import *
 from homeassistant.config import DATA_CUSTOMIZE
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import aiohttp_client
-from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity import Entity, EntityCategory
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.reload import (
@@ -600,7 +600,7 @@ class BaseDevice:
 
     @property
     def tire_alarm(self):
-        return self.to_number(self.tire_status.get('alarmCount', 0))
+        return int(self.to_number(self.tire_status.get('alarmCount', 0)))
 
     def tire_alarm_attrs(self):
         tad = {**self.tire_status}
@@ -683,10 +683,12 @@ class BaseDevice:
             'charge': {
                 'icon': 'mdi:ev-station',
                 'attrs': self.charge_attrs,
+                'category': EntityCategory.DIAGNOSTIC,
             },
             'battery': {
                 'class': DEVICE_CLASS_BATTERY,
                 'unit': PERCENTAGE,
+                'category': EntityCategory.DIAGNOSTIC,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'fuel_level': {
@@ -696,14 +698,17 @@ class BaseDevice:
             'door_opened': {
                 'icon': 'mdi:car-door',
                 'attrs': self.door_opened_attrs,
+                'category': EntityCategory.DIAGNOSTIC,
             },
             'door_unlocked': {
                 'icon': 'mdi:car-door-lock',
                 'attrs': self.door_unlocked_attrs,
+                'category': EntityCategory.DIAGNOSTIC,
             },
             'window_opened': {
                 'icon': 'mdi:dock-window',
                 'attrs': self.windows_attrs,
+                'category': EntityCategory.DIAGNOSTIC,
             },
             'indoor_temperature': {
                 'class': DEVICE_CLASS_TEMPERATURE,
@@ -726,6 +731,7 @@ class BaseDevice:
             'tire_alarm': {
                 'icon': 'mdi:tire',
                 'attrs': self.tire_alarm_attrs,
+                'category': EntityCategory.DIAGNOSTIC,
             },
             'monthly_elec': {
                 'class': DEVICE_CLASS_ENERGY,
@@ -763,6 +769,12 @@ class BaseDevice:
                 'entity': RemoteCtrlSwitchEntity,
                 'on_cmd': 'remote_central_lock_unlock',
                 'off_cmd': 'remote_central_lock_lock',
+            },
+            'ac_onoff': {
+                'icon': 'mdi:fan',
+                'entity': AcCtrlSwitchEntity,
+                'on_type': 19,
+                'off_type': 20,
             },
             'wheel_warm': {
                 'icon': 'mdi:steering',
@@ -966,6 +978,7 @@ class BaseEntity(Entity):
         self._attr_entity_picture = self._option.get('picture')
         self._attr_device_class = self._option.get('class')
         self._attr_unit_of_measurement = self._option.get('unit')
+        self._attr_entity_category = self._option.get('category')
         self._attr_translation_key = self._option.get('translation_key', name)
         ota = device.car_status.get('otaUpgradeInfo') or {}
         self._attr_device_info = {
