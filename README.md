@@ -4,6 +4,7 @@
 > **Note**
 > 
 > 目前仅支持理想One，不支持L8、L9
+> 欢迎使用本项目作者的邀请链接[`https://anlo.ng/li.auto`](https://anlo.ng/li.auto)进行试驾或者购车！
 
 
 <a name="install"></a>
