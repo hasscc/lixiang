@@ -119,15 +119,17 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             'speed': self._attr_extra_state_attributes.get('speed', 0) * KNOTS_TO_KPH_RATIO,  # km/h -> knots
             'batt': self.battery_level,
             'fuel': self.device.to_number(self.device.endurance_attrs().get('residueFuel')),
-            'totalDistance': self.device.to_number(self.device.mileage_attrs().get('totalMileage')),
             'deviceTemp': self.device.indoor_temperature,
         }
+        dis = self.device.to_number(self.device.mileage_attrs().get('totalMileage'))
+        if dis is not None:
+            pms['totalDistance'] = int(dis * 1000)
         pms = {
             k: v
             for k, v in pms.items()
             if v is not None
         }
-        url = f'http://{host}'
+        url = host if '://' in host else f'http://{host}'
         try:
             await self.device.http.get(url, params=pms)
         except (ClientConnectorError, Exception) as exc:
