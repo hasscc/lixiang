@@ -438,6 +438,7 @@ class BaseDevice:
             11: 'connected',
             50: 'charging',
             70: 'full',
+            80: 'warming',
         }
         return dic.get(sta, sta)
 

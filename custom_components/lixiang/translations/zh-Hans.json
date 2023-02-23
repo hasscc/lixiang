@@ -46,7 +46,8 @@
           "charging": "充电中",
           "connected": "已连接",
           "disconnected": "未连接",
-          "full": "已充满"
+          "full": "已充满",
+          "warming": "保温中"
         }
       },
       "status": {
