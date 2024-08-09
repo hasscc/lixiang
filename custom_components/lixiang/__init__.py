@@ -9,8 +9,23 @@ import hashlib
 import datetime
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant
-from homeassistant.const import *
+from homeassistant.core import HomeAssistant, SupportsResponse
+from homeassistant.const import (
+    SERVICE_RELOAD,
+    CONF_NAME,
+    CONF_URL,
+    CONF_API_KEY,
+    CONF_API_TOKEN,
+    CONF_DEVICE_ID,
+    CONF_ENTITIES,
+    CONF_SCAN_INTERVAL,
+    UnitOfLength,
+    UnitOfEnergy,
+    UnitOfVolume,
+    UnitOfTemperature,
+    PERCENTAGE,
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+)
 from homeassistant.config import DATA_CUSTOMIZE
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import aiohttp_client, device_registry
@@ -21,8 +36,7 @@ from homeassistant.helpers.reload import (
     async_integration_yaml_config,
     async_reload_integration_platforms,
 )
-from homeassistant.components import persistent_notification
-from homeassistant.util.dt import DEFAULT_TIME_ZONE
+from homeassistant.util import dt
 import homeassistant.helpers.config_validation as cv
 from asyncio import TimeoutError
 from aiohttp import ClientConnectorError, ClientResponseError
@@ -160,12 +174,21 @@ class ComponentServices:
         hass.services.async_register(
             DOMAIN, 'request_api', self.async_request_api,
             schema=vol.Schema({
-                vol.Required(ATTR_ENTITY_ID): cv.string,
+                vol.Required(CONF_VIN): cv.string,
                 vol.Required('api'): cv.string,
                 vol.Optional('params', default={}): vol.Any(dict, None),
                 vol.Optional('headers', default={}): vol.Any(dict, None),
-                vol.Optional('throw', default=True): cv.boolean,
-            }),
+            }, extra=vol.ALLOW_EXTRA),
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+        hass.services.async_register(
+            DOMAIN, 'set_hook_data', self.async_set_hook_data,
+            schema=vol.Schema({
+                vol.Required(CONF_VIN): cv.string,
+                vol.Required('data', default={}): vol.Any(dict, None),
+            }, extra=vol.ALLOW_EXTRA),
+            supports_response=SupportsResponse.OPTIONAL,
         )
 
     async def handle_reload_config(self, call):
@@ -182,31 +205,46 @@ class ComponentServices:
         await async_reload_integration_platforms(self.hass, DOMAIN, SUPPORTED_DOMAINS)
 
     async def async_request_api(self, call):
-        dat = call.data or {}
-        eid = dat.get(ATTR_ENTITY_ID)
-        car = None
-        ent = self.hass.data[DOMAIN][CONF_ENTITIES].get(eid) if eid else None
-        if ent and isinstance(ent, BaseEntity):
-            car = ent.device
+        dat = dict(call.data or {})
+        vin = dat.get(CONF_VIN)
+        car = self.hass.data[DOMAIN][CONF_CARS].get(vin) if vin else None
         api = dat['api']
         pms = dat.get('params') or {}
         hds = dat.get('headers') or {}
-        if car:
-            rdt = await car.async_request(api, pms, headers=hds)
+        if not isinstance(car, BaseDevice):
+            return {'error': 'Car not found.'}
+        return await car.async_request(api, pms, headers=hds) or {}
+
+    async def async_set_hook_data(self, call):
+        dat = dict(call.data or {})
+        vin = dat.get(CONF_VIN)
+        car = self.hass.data[DOMAIN][CONF_CARS].get(vin) if vin else None
+        if not isinstance(car, BaseDevice):
+            return {'error': 'Car not found.'}
+        if not (data := dict(dat.get('data') or {})):
+            return {'error': 'Empty data.'}
+        url = dat.get(CONF_URL, '')
+        now = dt.now()
+        if url.endswith(f'/aisp-account-api/v1-0/vehicles/{vin}'):
+            car.car_info = data
+        elif '/real-time-state' in url:
+            car.car_status = data
+        elif '/vehicles/energy-cost/total/' in url:
+            car.car_mileage = data
+        elif '/vehicles/tire/alarm/' in url:
+            car.tire_status = data
+        elif f'/vehicles/energy-cost/monthly/{now.year}/{now.month}/' in url:
+            car.energy_cost = data
+        elif f'/parking-photos' in url and data.get('pictures'):
+            self.park_photos = data
         else:
-            rdt = ['Not found car.']
-        if dat.get('throw', True):
-            persistent_notification.async_create(
-                self.hass, f'{rdt}', 'Request LiXiang API result', f'{DOMAIN}-debug',
-            )
-        self.hass.bus.async_fire(f'{DOMAIN}.request_api', {
-            'vin': car.vin if car else None,
-            'api': api,
-            'params': pms,
-            'headers': hds,
-            'result': rdt,
-        })
-        return rdt
+            return {'error': f'Unknown url: {url}'}
+        await car.update_entities()
+        if not car.config.get('stop_pull'):
+            for v in car.coordinators.values():
+                await v.async_shutdown()
+            car.config['stop_pull'] = True
+        return data
 
 
 class BaseDevice:
@@ -309,8 +347,7 @@ class BaseDevice:
         await self.update_mileage()
         await self.update_tire_status()
 
-        now = datetime.datetime.now(DEFAULT_TIME_ZONE)
-        if now.minute % 5 == 0:
+        if dt.now().minute % 5 == 0:
             await self.update_photos()
 
         await self.update_entities()
@@ -329,30 +366,35 @@ class BaseDevice:
         if not vin:
             return {}
         api = f'/aisp-account-api/v1-0/vehicles/{vin}'
-        self.car_info = await self.async_request(api) or {}
-        return self.car_info
+        if dat := await self.async_request(api):
+            self.car_info = dat
+        return dat
 
     async def update_status(self):
         api = f'/ssp-as-mobile-api/v3-0/vehicles/{self.vin}/real-time-state'
-        self.car_status = await self.async_request(api) or {}
-        return self.car_status
+        if dat := await self.async_request(api):
+            self.car_status = dat
+        return dat
 
     async def update_mileage(self):
         api = f'/ssp-as-mobile-api/v3-0/vehicles/energy-cost/total/{self.vin}'
-        self.car_mileage = await self.async_request(api) or {}
-        return self.car_mileage
+        if dat := await self.async_request(api):
+            self.car_mileage = dat
+        return dat
 
     async def update_tire_status(self):
         api = f'/ssp-as-mobile-api/v1-0/vehicles/tire/alarm/{self.vin}'
-        self.tire_status = await self.async_request(api) or {}
-        return self.tire_status
+        if dat := await self.async_request(api):
+            self.tire_status = dat
+        return dat
 
     async def update_energy_cost(self):
-        now = datetime.datetime.now(DEFAULT_TIME_ZONE)
+        now = dt.now()
         api = f'/ssp-as-mobile-api/v3-0/vehicles/energy-cost/monthly/{now.year}/{now.month}/{self.vin}'
-        self.energy_cost = await self.async_request(api) or {}
-        await self.update_entities()
-        return self.energy_cost
+        if dat := await self.async_request(api):
+            self.energy_cost = dat
+            await self.update_entities()
+        return dat
 
     async def update_photos(self):
         api = f'/ssp-as-mobile-api/v1-0/vehicles/{self.vin}/parking-photos'
@@ -598,7 +640,7 @@ class BaseDevice:
     def location_attrs(self):
         tim = self.to_number(self.location_status.get('ct'))
         if tim:
-            tim = datetime.datetime.fromtimestamp(tim / 1000).replace(tzinfo=DEFAULT_TIME_ZONE)
+            tim = datetime.datetime.fromtimestamp(tim / 1000).replace(tzinfo=dt.DEFAULT_TIME_ZONE)
         else:
             tim = None
         return {
@@ -630,7 +672,7 @@ class BaseDevice:
     def parking_photos(self):
         tim = self.to_number(self.park_photos.get('picTimestamp'))
         if tim:
-            tim = datetime.datetime.fromtimestamp(tim / 1000).replace(tzinfo=DEFAULT_TIME_ZONE)
+            tim = datetime.datetime.fromtimestamp(tim / 1000).replace(tzinfo=dt.DEFAULT_TIME_ZONE)
         return {
             **(self.park_photos or {}),
             'timestamp':  tim,
@@ -683,13 +725,13 @@ class BaseDevice:
             },
             'mileage': {
                 'icon': 'mdi:gauge',
-                'unit': LENGTH_KILOMETERS,
+                'unit': UnitOfLength.KILOMETERS,
                 'attrs': self.mileage_attrs,
                 'state_class': SensorStateClass.TOTAL,
             },
             'endurance': {
                 'icon': 'mdi:speedometer',
-                'unit': LENGTH_KILOMETERS,
+                'unit': UnitOfLength.KILOMETERS,
                 'attrs': self.endurance_attrs,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
@@ -726,12 +768,12 @@ class BaseDevice:
             },
             'indoor_temperature': {
                 'class': SensorDeviceClass.TEMPERATURE,
-                'unit': TEMP_CELSIUS,
+                'unit': UnitOfTemperature.CELSIUS,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'outdoor_temperature': {
                 'class': SensorDeviceClass.TEMPERATURE,
-                'unit': TEMP_CELSIUS,
+                'unit': UnitOfTemperature.CELSIUS,
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'pm25': {
@@ -749,13 +791,13 @@ class BaseDevice:
             },
             'monthly_elec': {
                 'class': SensorDeviceClass.ENERGY,
-                'unit': ENERGY_KILO_WATT_HOUR,
+                'unit': UnitOfEnergy.KILO_WATT_HOUR,
                 'icon': 'mdi:car-electric',
                 'attrs': self.monthly_elec_attrs,
                 'state_class': SensorStateClass.TOTAL_INCREASING,
             },
             'monthly_fuel': {
-                'unit': VOLUME_LITERS,
+                'unit': UnitOfVolume.LITERS,
                 'icon': 'mdi:fuel',
                 'attrs': self.monthly_fuel_attrs,
                 'state_class': SensorStateClass.TOTAL_INCREASING,
@@ -974,7 +1016,7 @@ class BaseDevice:
             _LOGGER.error('Request api failed: %s', [api, pms, kwargs, exc])
         if not dat or dat.get('code'):
             _LOGGER.warning('Request api: %s', [api, pms, kwargs, dat])
-        return dat.get('data') or dat
+        return dat.get('data') or {}
 
 
 class BaseEntity(Entity):
