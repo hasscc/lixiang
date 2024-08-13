@@ -242,7 +242,8 @@ class ComponentServices:
         await car.update_entities()
         if not car.config.get('stop_pull'):
             for v in car.coordinators.values():
-                await v.async_shutdown()
+                if coordinator := v.get('coordinator'):
+                    await coordinator.async_shutdown()
             car.config['stop_pull'] = True
         return data
 
