@@ -26,10 +26,9 @@ from homeassistant.const import (
     PERCENTAGE,
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
 )
-from homeassistant.config import DATA_CUSTOMIZE
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import aiohttp_client, device_registry
-from homeassistant.helpers.entity import Entity, EntityCategory
+from homeassistant.helpers.entity import Entity, EntityCategory, DATA_CUSTOMIZE
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.reload import (
