@@ -12,11 +12,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.const import (
     SERVICE_RELOAD,
-    CONF_NAME,
     CONF_URL,
-    CONF_API_KEY,
-    CONF_API_TOKEN,
-    CONF_DEVICE_ID,
     CONF_ENTITIES,
     CONF_SCAN_INTERVAL,
     UnitOfLength,
@@ -31,6 +27,8 @@ from homeassistant.helpers import aiohttp_client, device_registry
 from homeassistant.helpers.entity import Entity, EntityCategory, DATA_CUSTOMIZE
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.service import async_register_admin_service
+from homeassistant.helpers.restore_state import RestoredExtraData
 from homeassistant.helpers.reload import (
     async_integration_yaml_config,
     async_reload_integration_platforms,
@@ -79,17 +77,6 @@ async def async_setup(hass: HomeAssistant, hass_config: dict):
     hass.data[DOMAIN]['component'] = component
     await component.async_setup(config)
 
-    car = None
-    cls = config.get(CONF_CARS) or []
-    for cfg in cls:
-        if car := get_car_from_config(hass, cfg):
-            await car.update_coordinator_first()
-
-    for platform in (SUPPORTED_DOMAINS if car else []):
-        hass.async_create_task(
-            hass.helpers.discovery.async_load_platform(platform, DOMAIN, {}, config)
-        )
-
     ComponentServices(hass)
     return True
 
@@ -99,10 +86,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     if car := get_car_from_config(hass, config_entry):
         await car.update_coordinator_first()
 
-    for platform in SUPPORTED_DOMAINS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(config_entry, platform)
-        )
+    await hass.config_entries.async_forward_entry_setups(config_entry, SUPPORTED_DOMAINS)
+    config_entry.async_on_unload(config_entry.add_update_listener(async_reload_entry))
     return True
 
 
@@ -112,6 +97,9 @@ def init_integration_data(hass):
     hass.data[DOMAIN].setdefault(CONF_ENTITIES, {})
     hass.data[DOMAIN].setdefault('add_entities', {})
 
+
+async def async_reload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
+    await hass.config_entries.async_reload(config_entry.entry_id)
 
 async def async_unload_entry(hass: HomeAssistant, config_entry: ConfigEntry):
     unload_ok = all(
@@ -166,8 +154,8 @@ class ComponentServices:
     def __init__(self, hass: HomeAssistant):
         self.hass = hass
 
-        hass.helpers.service.async_register_admin_service(
-            DOMAIN, SERVICE_RELOAD, self.handle_reload_config,
+        async_register_admin_service(
+            hass, DOMAIN, SERVICE_RELOAD, self.handle_reload_config,
         )
 
         hass.services.async_register(
@@ -239,11 +227,7 @@ class ComponentServices:
         else:
             return {'error': f'Unknown url: {url}'}
         await car.update_entities()
-        if not car.config.get('stop_pull'):
-            for v in car.coordinators.values():
-                if coordinator := v.get('coordinator'):
-                    await coordinator.async_shutdown()
-            car.config['stop_pull'] = True
+        await car.async_stop_pull()
         return data
 
 
@@ -359,6 +343,13 @@ class BaseDevice:
             if coo := v.get('coordinator'):
                 await coo.async_config_entry_first_refresh()
         await self.update_photos()
+
+    async def async_stop_pull(self):
+        if not self.config.get('stop_pull'):
+            for v in self.coordinators.values():
+                if coordinator := v.get('coordinator'):
+                    await coordinator.async_shutdown()
+            self.config['stop_pull'] = True
 
     async def update_vehicle_info(self, vin=None):
         if vin is None:
@@ -1014,8 +1005,11 @@ class BaseDevice:
         except (ClientConnectorError, TimeoutError) as exc:
             dat = {}
             _LOGGER.error('Request api failed: %s', [api, pms, kwargs, exc])
-        if not dat or dat.get('code'):
+        code = dat.get('code')
+        if not dat or code:
             _LOGGER.warning('Request api: %s', [api, pms, kwargs, dat])
+        if code == 144012:
+            await self.async_stop_pull()
         return dat.get('data') or {}
 
 
@@ -1050,12 +1044,32 @@ class BaseEntity(Entity):
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
-        await self.update_from_device()
         self.hass.data[DOMAIN][CONF_ENTITIES][self.entity_id] = self
         self.device.listeners[self.entity_id] = self._handle_coordinator_update
-        self._handle_coordinator_update()
+
+        if hasattr(self, 'async_get_last_extra_data'):
+            last: RestoredExtraData = await self.async_get_last_extra_data()
+            data = last.as_dict() if last else None
+            if data:
+                _LOGGER.debug('Restore extra data: %s', [self.entity_id, data])
+                self._attr_state = data.pop('_state', None)
+                self._attr_extra_state_attributes = data
+                self._handle_coordinator_update()
+
+    @property
+    def extra_restore_state_data(self):
+        if self._attr_state is None:
+            return None
+        data = {
+            '_state': self._attr_state,
+            **(self._attr_extra_state_attributes or {}),
+        }
+        _LOGGER.debug('Save restore data: %s', [self.entity_id, data])
+        return RestoredExtraData(data)
 
     def _handle_coordinator_update(self):
+        if hasattr(self, 'set_state'):
+            self.set_state()
         self.async_write_ha_state()
 
     async def async_update(self):
@@ -1068,6 +1082,9 @@ class BaseEntity(Entity):
         fun = self._option.get('attrs')
         if callable(fun):
             self._attr_extra_state_attributes = fun()
+
+        self._handle_coordinator_update()
+        _LOGGER.debug('update_from_device: %s', [self._name, self._attr_state, self._attr_extra_state_attributes])
 
     def get_customize(self, key=None, default=None):
         cus = self.hass.data[DATA_CUSTOMIZE].get(self.entity_id) or {}

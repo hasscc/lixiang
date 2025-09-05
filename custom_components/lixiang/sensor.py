@@ -6,6 +6,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,  # noqa
     DOMAIN as ENTITY_DOMAIN,
 )
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import (
     DOMAIN,
@@ -26,7 +27,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await async_setup_device(hass, config, ENTITY_DOMAIN, async_add_entities)
 
 
-class XSensorEntity(BaseEntity, SensorEntity):
+class XSensorEntity(BaseEntity, SensorEntity, RestoreEntity):
     _attr_native_value = None
     _attr_native_unit_of_measurement = None
 
@@ -35,6 +36,5 @@ class XSensorEntity(BaseEntity, SensorEntity):
         self._attr_state_class = self._option.get('state_class')
         self._attr_native_unit_of_measurement = self._attr_unit_of_measurement
 
-    async def update_from_device(self):
-        await super().update_from_device()
+    def set_state(self):
         self._attr_native_value = self._attr_state

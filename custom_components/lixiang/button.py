@@ -30,6 +30,10 @@ class XButtonEntity(BaseEntity, ButtonEntity):
     def __init__(self, name, device: BaseDevice, option=None):
         super().__init__(name, device, option)
 
+    @property
+    def extra_restore_state_data(self):
+        return None
+
     async def async_press(self):
         """Press the button."""
         ret = False

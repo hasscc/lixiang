@@ -1,3 +1,11 @@
+from homeassistant.const import (  # noqa
+    CONF_NAME,
+    CONF_API_KEY,
+    CONF_API_TOKEN,
+    CONF_DEVICE_ID,
+    ATTR_TEMPERATURE,
+)
+
 DOMAIN = 'lixiang'
 
 CONF_CARS = 'cars'

@@ -5,6 +5,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     DOMAIN as ENTITY_DOMAIN,
 )
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import (
     DOMAIN,
@@ -25,11 +26,10 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     await async_setup_device(hass, config, ENTITY_DOMAIN, async_add_entities)
 
 
-class XBinarySensorEntity(BaseEntity, BinarySensorEntity):
+class XBinarySensorEntity(BaseEntity, BinarySensorEntity, RestoreEntity):
     _attr_is_on = None
 
-    async def update_from_device(self):
-        await super().update_from_device()
+    def set_state(self):
         if self._attr_state is None:
             self._attr_is_on = None
         else:

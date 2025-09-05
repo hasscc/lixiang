@@ -1,20 +1,20 @@
 """Support for climate."""
 import logging
 
-from homeassistant.const import *
 from homeassistant.components.climate import (
     ClimateEntity,
     HVACMode, HVACAction,
     ClimateEntityFeature,
     DOMAIN as ENTITY_DOMAIN,
 )
+from homeassistant.const import UnitOfTemperature
 
 from . import (
-    DOMAIN,
     BaseDevice,
     BaseEntity,
     async_setup_device,
 )
+from .const import *
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,14 +32,16 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
 class XClimateEntity(BaseEntity, ClimateEntity):
     _attr_hvac_mode = None
     _attr_hvac_modes = []
+    _attr_fan_mode = None
+    _attr_fan_modes = []
 
 
 class CarAcEntity(XClimateEntity):
     _attr_max_temp = 32
     _attr_min_temp = 16
-    _attr_temperature_unit = TEMP_CELSIUS
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.5
-    _attr_supported_features = 0
+    _attr_supported_features = ClimateEntityFeature(0)
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()

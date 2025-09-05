@@ -2,7 +2,6 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.const import *
 
 from . import get_car_from_config, init_integration_data
 from .const import *
