@@ -173,7 +173,7 @@ class ComponentServices:
             DOMAIN, 'set_hook_data', self.async_set_hook_data,
             schema=vol.Schema({
                 vol.Required(CONF_VIN): cv.string,
-                vol.Required('data', default={}): vol.Any(dict, None),
+                vol.Required('data', default={}): vol.Any(dict, list, None),
             }, extra=vol.ALLOW_EXTRA),
             supports_response=SupportsResponse.OPTIONAL,
         )
@@ -203,7 +203,8 @@ class ComponentServices:
         return await car.async_request(api, pms, headers=hds) or {}
 
     async def async_set_hook_data(self, call):
-        dat = dict(call.data or {})
+        lst = call.data if isinstance(call.data, list) else [call.data or {}]
+        dat = lst[0] if lst and isinstance(lst[0], dict) else {}
         vin = dat.get(CONF_VIN)
         car = self.hass.data[DOMAIN][CONF_CARS].get(vin) if vin else None
         if not isinstance(car, BaseDevice):
