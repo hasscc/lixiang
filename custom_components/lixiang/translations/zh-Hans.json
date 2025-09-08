@@ -41,21 +41,34 @@
   },
   "entity": {
     "sensor": {
+      "status": {
+        "name": "状态",
+        "state": {
+          "online": "在线",
+          "offline": "离线",
+          "sleeping": "已休眠",
+          "wakingup": "唤醒中"
+        }
+      },
+      "battery": {"name": "剩余电量"},
+      "fuel_level": {"name": "剩余油量"},
+      "endurance": {"name": "剩余续航"},
+      "daily_batt_consumed": {"name": "日用电"},
+      "daily_batt_recharged": {"name": "日充电"},
+      "daily_batt_endurance": {"name": "日里程🔋"},
+      "daily_fuel_consumed": {"name": "日用油"},
+      "daily_fuel_recharged": {"name": "日加油"},
+      "daily_fuel_endurance": {"name": "日里程⛽"},
+      "daily_cost_endurance": {"name": "日续航消耗"},
+      "gear": {"name": "档位"},
       "charge": {
+        "name": "充电状态",
         "state": {
           "charging": "充电中",
           "connected": "已连接",
           "disconnected": "未连接",
           "full": "已充满",
           "warming": "保温中"
-        }
-      },
-      "status": {
-        "state": {
-          "online": "在线",
-          "offline": "离线",
-          "sleeping": "已休眠",
-          "wakingup": "唤醒中"
         }
       }
     },

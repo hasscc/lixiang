@@ -40,6 +40,7 @@
     }
   },
   "entity": {
+    "sensor": {},
     "select": {
       "heat_levels": {
         "state": {

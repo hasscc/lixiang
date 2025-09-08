@@ -24,11 +24,12 @@ from homeassistant.const import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import aiohttp_client, device_registry
-from homeassistant.helpers.entity import Entity, EntityCategory, DATA_CUSTOMIZE
+from homeassistant.helpers.entity import Entity, EntityCategory, DeviceInfo, DATA_CUSTOMIZE
 from homeassistant.helpers.entity_component import EntityComponent
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.restore_state import RestoredExtraData
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.reload import (
     async_integration_yaml_config,
     async_reload_integration_platforms,
@@ -216,7 +217,9 @@ class ComponentServices:
         if url.endswith(f'/aisp-account-api/v1-0/vehicles/{vin}'):
             car.car_info = data
         elif '/real-time-state' in url:
+            await car.update_stats(data)
             car.car_status = data
+            await car.async_sync_store()
         elif '/vehicles/energy-cost/total/' in url:
             car.car_mileage = data
         elif '/vehicles/tire/alarm/' in url:
@@ -224,7 +227,7 @@ class ComponentServices:
         elif f'/vehicles/energy-cost/monthly/{now.year}/{now.month}/' in url:
             car.energy_cost = data
         elif f'/parking-photos' in url and data.get('pictures'):
-            self.park_photos = data
+            car.park_photos = data
         else:
             return {'error': f'Unknown url: {url}'}
         await car.update_entities()
@@ -246,6 +249,7 @@ class BaseDevice:
         self.tire_status = {}
         self.energy_cost = {}
         self.park_photos = {}
+        self.store = Store(hass, 1, f'{DOMAIN}/car-{self.vin}.json')
         self.http = aiohttp_client.async_create_clientsession(hass, auto_cleanup=False)
 
         self.coordinators = {
@@ -338,12 +342,21 @@ class BaseDevice:
         await self.update_entities()
 
     async def update_coordinator_first(self):
+        data = await self.store.async_load() or {}
+        if car_status := data.get('car_status'):
+            self.car_status = car_status
+
         if not self.car_info:
             await self.update_vehicle_info()
         for v in self.coordinators.values():
             if coo := v.get('coordinator'):
                 await coo.async_config_entry_first_refresh()
         await self.update_photos()
+
+    async def async_sync_store(self):
+        return await self.store.async_save({
+            'car_status': self.car_status,
+        })
 
     async def async_stop_pull(self):
         if not self.config.get('stop_pull'):
@@ -365,6 +378,7 @@ class BaseDevice:
     async def update_status(self):
         api = f'/ssp-as-mobile-api/v3-0/vehicles/{self.vin}/real-time-state'
         if dat := await self.async_request(api):
+            await self.update_stats(dat)
             self.car_status = dat
         return dat
 
@@ -510,6 +524,79 @@ class BaseDevice:
     @property
     def fuel_level(self):
         return self.to_number(self.endurance_attrs().get('residueFuel'))
+
+    @property
+    def daily_batt_consumed(self):
+        return self.to_number(self.endurance_attrs().get('daily_batt_consumed'))
+
+    @property
+    def daily_batt_recharged(self):
+        return self.to_number(self.endurance_attrs().get('daily_batt_recharged'))
+
+    @property
+    def daily_batt_endurance(self):
+        return self.to_number(self.endurance_attrs().get('daily_batt_endurance'))
+
+    @property
+    def daily_fuel_consumed(self):
+        return self.to_number(self.endurance_attrs().get('daily_fuel_consumed'))
+
+    @property
+    def daily_fuel_recharged(self):
+        return self.to_number(self.endurance_attrs().get('daily_fuel_recharged'))
+
+    @property
+    def daily_fuel_endurance(self):
+        return self.to_number(self.endurance_attrs().get('daily_fuel_endurance'))
+
+    @property
+    def daily_cost_endurance(self):
+        return self.to_number(self.endurance_attrs().get('daily_cost_endurance'))
+
+    async def update_stats(self, new_status: dict):
+        charge_setting = new_status.get('chargeSetting') or {}
+        endurance_status = charge_setting.get('enduranceStatus') or {}
+        endurance_status['timestamp'] = charge_setting.get('timestamp') or 0
+        await self.update_endurance_stat(endurance_status, self.endurance_attrs())
+
+    async def update_endurance_stat(self, new_endurance: dict, old_endurance: dict):
+        if not new_endurance:
+            return
+        for k, v in old_endurance.items():
+            new_endurance.setdefault(k, v)
+        new_time = new_endurance.get('timestamp') or 0
+        old_time = old_endurance.get('timestamp') or 0
+        if new_time <= old_time:
+            return
+        new_date = dt.as_local(dt.utc_from_timestamp(new_time / 1000)).strftime('%Y-%m-%d')
+        old_date = dt.as_local(dt.utc_from_timestamp(old_time / 1000)).strftime('%Y-%m-%d')
+        if new_date != old_date or not old_endurance:
+            new_endurance.update({
+                'daily_batt_consumed': 0,
+                'daily_batt_recharged': 0,
+                'daily_batt_endurance': 0,
+                'daily_fuel_consumed': 0,
+                'daily_fuel_recharged': 0,
+                'daily_fuel_endurance': 0,
+                'daily_cost_endurance': 0,
+            })
+            _LOGGER.info('Reset endurance stat: %s', [old_date, new_endurance])
+            return
+        stat_inc = lambda f: max(0, self.to_number(new_endurance.get(f)) - self.to_number(old_endurance.get(f)))
+        stat_dec = lambda f: max(0, self.to_number(old_endurance.get(f)) - self.to_number(new_endurance.get(f)))
+        stat = {
+            'daily_batt_consumed': stat_dec('residueBattery'),
+            'daily_batt_recharged': stat_inc('residueBattery'),
+            'daily_batt_endurance': stat_dec('batteryEndurance'),
+            'daily_fuel_consumed': stat_dec('residueFuel'),
+            'daily_fuel_recharged': stat_inc('residueFuel'),
+            'daily_fuel_endurance': stat_dec('fuelEndurance'),
+            'daily_cost_endurance': stat_dec('fuelEndurance') + stat_dec('batteryEndurance'),
+        }
+        for k, v in stat.items():
+            new_endurance.setdefault(k, old_endurance.get(k, 0))
+            new_endurance[k] += v
+        _LOGGER.info('update_endurance_stat: %s', [stat, new_endurance])
 
     @property
     def door_opened(self):
@@ -742,6 +829,43 @@ class BaseDevice:
                 'icon': 'mdi:gas-station',
                 'unit': PERCENTAGE,
                 'state_class': SensorStateClass.MEASUREMENT,
+            },
+            'daily_batt_consumed': {
+                'class': SensorDeviceClass.BATTERY,
+                'icon': 'mdi:battery-minus',
+                'unit': PERCENTAGE,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
+            },
+            'daily_batt_recharged': {
+                'class': SensorDeviceClass.BATTERY,
+                'icon': 'mdi:battery-plus',
+                'unit': PERCENTAGE,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
+            },
+            'daily_batt_endurance': {
+                'icon': 'mdi:car-electric',
+                'unit': UnitOfLength.KILOMETERS,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
+            },
+            'daily_fuel_consumed': {
+                'icon': 'mdi:gas-station',
+                'unit': PERCENTAGE,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
+            },
+            'daily_fuel_recharged': {
+                'icon': 'mdi:gas-station',
+                'unit': PERCENTAGE,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
+            },
+            'daily_fuel_endurance': {
+                'icon': 'mdi:fuel',
+                'unit': UnitOfLength.KILOMETERS,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
+            },
+            'daily_cost_endurance': {
+                'icon': 'mdi:gauge',
+                'unit': UnitOfLength.KILOMETERS,
+                'state_class': SensorStateClass.TOTAL_INCREASING,
             },
             'door_opened': {
                 'icon': 'mdi:car-door',
@@ -1033,13 +1157,13 @@ class BaseEntity(Entity):
         self._attr_entity_category = self._option.get('category')
         self._attr_translation_key = self._option.get('translation_key', name)
         ota = device.car_status.get('otaUpgradeInfo') or {}
-        self._attr_device_info = {
+        self._attr_device_info = DeviceInfo({
             'identifiers': {(DOMAIN, self._attr_device_id)},
             'name': device.name,
             'model': device.model_desc,
             'sw_version': ota.get('baseVersion'),
             'manufacturer': device.get_info('brandNo') or device.get_info('brand') or 'LiXiang',
-        }
+        })
         self._attr_extra_state_attributes = {}
         self._vars = {}
 
