@@ -568,31 +568,23 @@ class BaseDevice:
         old_time = old_endurance.get('timestamp') or 0
         if new_time <= old_time:
             return
-        new_date = dt.as_local(dt.utc_from_timestamp(new_time / 1000)).strftime('%Y-%m-%d')
-        old_date = dt.as_local(dt.utc_from_timestamp(old_time / 1000)).strftime('%Y-%m-%d')
-        if new_date != old_date or not old_endurance:
-            new_endurance.update({
-                'daily_batt_consumed': 0,
-                'daily_batt_recharged': 0,
-                'daily_batt_endurance': 0,
-                'daily_fuel_consumed': 0,
-                'daily_fuel_recharged': 0,
-                'daily_fuel_endurance': 0,
-                'daily_cost_endurance': 0,
-            })
-            _LOGGER.info('Reset endurance stat: %s', [old_date, new_endurance])
-            return
         stat_inc = lambda f: max(0, self.to_number(new_endurance.get(f)) - self.to_number(old_endurance.get(f)))
         stat_dec = lambda f: max(0, self.to_number(old_endurance.get(f)) - self.to_number(new_endurance.get(f)))
         stat = {
-            'daily_batt_consumed': stat_dec('residueBattery'),
+            'daily_batt_consumed':  stat_dec('residueBattery'),
             'daily_batt_recharged': stat_inc('residueBattery'),
             'daily_batt_endurance': stat_dec('batteryEndurance'),
-            'daily_fuel_consumed': stat_dec('residueFuel'),
+            'daily_fuel_consumed':  stat_dec('residueFuel'),
             'daily_fuel_recharged': stat_inc('residueFuel'),
             'daily_fuel_endurance': stat_dec('fuelEndurance'),
             'daily_cost_endurance': stat_dec('fuelEndurance') + stat_dec('batteryEndurance'),
         }
+        new_date = dt.as_local(dt.utc_from_timestamp(new_time / 1000)).strftime('%Y-%m-%d')
+        old_date = dt.as_local(dt.utc_from_timestamp(old_time / 1000)).strftime('%Y-%m-%d')
+        if new_date != old_date or not old_endurance:
+            for k in stat.keys():
+                new_endurance[k] = 0
+            _LOGGER.info('Reset endurance stat: %s', [old_date, new_endurance])
         for k, v in stat.items():
             new_endurance.setdefault(k, old_endurance.get(k, 0))
             new_endurance[k] += v
