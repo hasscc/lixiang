@@ -823,13 +823,11 @@ class BaseDevice:
                 'state_class': SensorStateClass.MEASUREMENT,
             },
             'daily_batt_consumed': {
-                'class': SensorDeviceClass.BATTERY,
                 'icon': 'mdi:battery-minus',
                 'unit': PERCENTAGE,
                 'state_class': SensorStateClass.TOTAL_INCREASING,
             },
             'daily_batt_recharged': {
-                'class': SensorDeviceClass.BATTERY,
                 'icon': 'mdi:battery-plus',
                 'unit': PERCENTAGE,
                 'state_class': SensorStateClass.TOTAL_INCREASING,

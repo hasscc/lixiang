@@ -1,5 +1,6 @@
 """Support for device tracker."""
 import logging
+import aiohttp
 import json
 from math import sin, asin, cos, radians, fabs, sqrt
 
@@ -7,7 +8,7 @@ from homeassistant.components.device_tracker.config_entry import (
     TrackerEntity,
     DOMAIN as ENTITY_DOMAIN,
 )
-from homeassistant.util import dt
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from aiohttp.client_exceptions import ClientConnectorError
 
 from . import (
@@ -15,6 +16,7 @@ from . import (
     BaseEntity,
     async_setup_device,
 )
+from .coord_transform import wgs84_to_gcj02
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,24 +38,40 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
     _prev_location = None
 
     async def update_from_device(self):
-        pre = self._prev_updated
-        if state := self.hass.states.get(self.entity_id):
-            if pre := state.attributes.get('timestamp'):
-                pre = dt.as_timestamp(pre)
-
         await super().update_from_device()
 
         tim = self.updated_at
-        if tim and pre and tim > pre:
+        point = (self.latitude, self.longitude)
+        location_updated = point != self._prev_location
+        if not location_updated:
+            pre = self._prev_updated or tim
+            location_updated = tim and tim > pre
+
+        if location_updated:
+            lng, lat = wgs84_to_gcj02(self.longitude, self.latitude)
+            self._attr_extra_state_attributes['gcj02_location'] = f'{lat},{lng}'
+
+            geo = await self.qq_geocoder(f'{lat},{lng}')
+            if geo and (pois := geo.get('pois')):
+                poi = pois[0]
+                adr = geo.get('address', '')
+                self._attr_extra_state_attributes.update({
+                    'poi_title': ' '.join([adr, poi.get('title', '')]).strip(),
+                    'address': poi.get('address') or adr,
+                    **(poi.get('ad_info') or {}),
+                })
+            self.hass.bus.fire(f'{DOMAIN}.location_updated', {
+                'vin': self.device.vin,
+                **self.state_attributes,
+                **self.extra_state_attributes,
+            })
+
             if spd := self.get_speed():
                 self._attr_extra_state_attributes['speed'] = spd
-
+            self._prev_updated = tim
+            self._prev_location = point
             await self.update_to_traccar()
             await self.update_to_baidu_yingyan()
-
-            self._prev_updated = tim
-            self._prev_location = (self.latitude, self.longitude)
-            self.hass.bus.fire(f'{DOMAIN}.location_updated', {'vin': self.device.vin})
 
     @property
     def battery_level(self):
@@ -162,6 +180,23 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
                 _LOGGER.warning('Update to baidu yingyan: %s', [pms, jss])
         except (ClientConnectorError, Exception) as exc:
             _LOGGER.warning('Update to baidu yingyan: %s', [pms, jss, exc])
+
+    async def qq_geocoder(self, location=None):
+        res = await async_get_clientsession(self.hass).get(
+            'https://apis.map.qq.com/ws/geocoder/v1/',
+            headers={
+                aiohttp.hdrs.ORIGIN: 'https://map.qq.com',
+                aiohttp.hdrs.REFERER: 'https://map.qq.com/',
+                aiohttp.hdrs.USER_AGENT: 'Mozilla/5.0 Chrome/139',
+            },
+            params={
+                'get_poi': 1,
+                'location': location,
+                'key': '4VQBZ-ZGO3G-VGSQE-ILN4G-LWFUK-5WB7H',
+            },
+        )
+        dat = await res.json() or {}
+        return dat.get('result', dat)
 
 
 def hav(theta):
