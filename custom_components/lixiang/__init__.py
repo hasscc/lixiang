@@ -1155,6 +1155,7 @@ class BaseEntity(Entity):
             'manufacturer': device.get_info('brandNo') or device.get_info('brand') or 'LiXiang',
         })
         self._attr_extra_state_attributes = {}
+        self._extra_attrs = {}
         self._vars = {}
 
     async def async_added_to_hass(self):
@@ -1183,8 +1184,6 @@ class BaseEntity(Entity):
         return RestoredExtraData(data)
 
     def _handle_coordinator_update(self):
-        if hasattr(self, 'set_state'):
-            self.set_state()
         self.async_write_ha_state()
 
     async def async_update(self):
@@ -1198,8 +1197,14 @@ class BaseEntity(Entity):
         if callable(fun):
             self._attr_extra_state_attributes = fun()
 
+        if hasattr(self, 'set_state'):
+            self.set_state()
+        if hasattr(self, 'async_set_state'):
+            await self.async_set_state()
+
+        self._attr_extra_state_attributes.update(self._extra_attrs)
         self._handle_coordinator_update()
-        _LOGGER.debug('update_from_device: %s', [self._name, self._attr_state, self._attr_extra_state_attributes])
+        _LOGGER.debug('update_from_device: %s', [self._name, self._attr_state, self.extra_state_attributes])
 
     def get_customize(self, key=None, default=None):
         cus = self.hass.data[DATA_CUSTOMIZE].get(self.entity_id) or {}

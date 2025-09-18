@@ -37,9 +37,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
     _prev_updated = None
     _prev_location = None
 
-    async def update_from_device(self):
-        await super().update_from_device()
-
+    async def async_set_state(self):
         tim = self.updated_at
         point = (self.latitude, self.longitude)
         location_updated = point != self._prev_location
@@ -49,13 +47,13 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
 
         if location_updated:
             lng, lat = wgs84_to_gcj02(self.longitude, self.latitude)
-            self._attr_extra_state_attributes['gcj02_location'] = f'{lat},{lng}'
+            self._extra_attrs['gcj02_location'] = f'{lat},{lng}'
 
             geo = await self.qq_geocoder(f'{lat},{lng}')
             if geo and (pois := geo.get('pois')):
                 poi = pois[0]
                 adr = geo.get('address', '')
-                self._attr_extra_state_attributes.update({
+                self._extra_attrs.update({
                     'poi_title': ' '.join([adr, poi.get('title', '')]).strip(),
                     'address': poi.get('address') or adr,
                     **(poi.get('ad_info') or {}),
@@ -67,7 +65,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             })
 
             if spd := self.get_speed():
-                self._attr_extra_state_attributes['speed'] = spd
+                self._extra_attrs['speed'] = spd
             self._prev_updated = tim
             self._prev_location = point
             await self.update_to_traccar()
@@ -134,7 +132,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             'lon': self.longitude,
             'altitude': self.location_status.get('alt'),
             'heading': self.location_status.get('dir'),
-            'speed': self._attr_extra_state_attributes.get('speed', 0) * KNOTS_TO_KPH_RATIO,  # km/h -> knots
+            'speed': self.extra_state_attributes.get('speed', 0) * KNOTS_TO_KPH_RATIO,  # km/h -> knots
             'batt': self.battery_level,
             'fuel': self.device.to_number(self.device.endurance_attrs().get('residueFuel')),
             'deviceTemp': self.device.indoor_temperature,
@@ -167,7 +165,7 @@ class CarTrackerEntity(BaseEntity, TrackerEntity):
             'loc_time': int(self.updated_at),
             'height': self.location_status.get('alt'),
             'direction': int(self.location_status.get('dir', 0)),
-            'speed': self._attr_extra_state_attributes.get('speed', 0),
+            'speed': self.extra_state_attributes.get('speed', 0),
             'coord_type_input': 'wgs84',
         }
         url = 'https://yingyan.baidu.com/api/v3/track/addpoint'
