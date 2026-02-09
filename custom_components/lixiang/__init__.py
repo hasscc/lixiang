@@ -1139,7 +1139,7 @@ class BaseEntity(Entity):
         self._attr_name = f'{device.name} {name}'.strip()
         self._attr_device_id = f'{device.vin}'
         self._attr_unique_id = f'{self._attr_device_id}-{name}'
-        self.entity_id = f'{DOMAIN}.{device.vin_sort}_{name}'
+        self.entity_id = f'{DOMAIN}.{device.vin_sort}_{name}'.lower()
         self._attr_icon = self._option.get('icon')
         self._attr_entity_picture = self._option.get('picture')
         self._attr_device_class = self._option.get('class')
