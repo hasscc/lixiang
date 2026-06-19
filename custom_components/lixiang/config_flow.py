@@ -13,7 +13,7 @@ def get_flow_schema(defaults: dict):
     return {
         vol.Optional(CONF_NAME, default=defaults.get(CONF_NAME, DEFAULT_NAME)): str,
         vol.Required(CONF_API_KEY, default=defaults.get(CONF_API_KEY, '')): str,
-        vol.Required(CONF_API_SIGN, default=defaults.get(CONF_API_SIGN, '')): str,
+        vol.Required(CONF_HMAC_KEY, default=defaults.get(CONF_HMAC_KEY, '')): str,
         vol.Required(CONF_API_TOKEN, default=defaults.get(CONF_API_TOKEN, '')): str,
         vol.Required(CONF_DEVICE_ID, default=defaults.get(CONF_DEVICE_ID, '')): str,
     }
@@ -61,7 +61,7 @@ class LiXiangConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class OptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry):
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(self, user_input=None):
         """Manage the options."""

@@ -8,10 +8,12 @@ from homeassistant.const import (  # noqa
 
 DOMAIN = 'lixiang'
 
+APP_VERSION = '8.22.0'
+
 CONF_CARS = 'cars'
 CONF_VIN = 'vin'
 CONF_API = 'api'
-CONF_API_SIGN = 'api_sign'
+CONF_HMAC_KEY = 'hmac_key'
 
 SUPPORTED_DOMAINS = [
     'binary_sensor',

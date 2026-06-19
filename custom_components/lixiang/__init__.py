@@ -4,6 +4,7 @@ import asyncio
 import time
 import json
 import uuid
+import hmac
 import base64
 import hashlib
 import datetime
@@ -50,7 +51,7 @@ DEVICE_SCHEMA = vol.Schema(
         vol.Required(CONF_VIN): cv.string,
         vol.Optional(CONF_NAME): cv.string,
         vol.Required(CONF_API_KEY): cv.string,
-        vol.Required(CONF_API_SIGN): cv.string,
+        vol.Required(CONF_HMAC_KEY): cv.string,
         vol.Required(CONF_API_TOKEN): cv.string,
         vol.Required(CONF_DEVICE_ID): cv.string,
     },
@@ -170,15 +171,6 @@ class ComponentServices:
             supports_response=SupportsResponse.OPTIONAL,
         )
 
-        hass.services.async_register(
-            DOMAIN, 'set_hook_data', self.async_set_hook_data,
-            schema=vol.Schema({
-                vol.Required(CONF_VIN): cv.string,
-                vol.Required('data', default={}): vol.Any(dict, list, None),
-            }, extra=vol.ALLOW_EXTRA),
-            supports_response=SupportsResponse.OPTIONAL,
-        )
-
     async def handle_reload_config(self, call):
         config = await async_integration_yaml_config(self.hass, DOMAIN)
         if not config or DOMAIN not in config:
@@ -202,37 +194,6 @@ class ComponentServices:
         if not isinstance(car, BaseDevice):
             return {'error': 'Car not found.'}
         return await car.async_request(api, pms, headers=hds) or {}
-
-    async def async_set_hook_data(self, call):
-        lst = call.data if isinstance(call.data, list) else [call.data or {}]
-        dat = lst[0] if lst and isinstance(lst[0], dict) else {}
-        vin = dat.get(CONF_VIN)
-        car = self.hass.data[DOMAIN][CONF_CARS].get(vin) if vin else None
-        if not isinstance(car, BaseDevice):
-            return {'error': 'Car not found.'}
-        if not (data := dict(dat.get('data') or {})):
-            return {'error': 'Empty data.'}
-        url = dat.get(CONF_URL, '')
-        now = dt.now()
-        if url.endswith(f'/aisp-account-api/v1-0/vehicles/{vin}'):
-            car.car_info = data
-        elif '/real-time-state' in url:
-            await car.update_stats(data)
-            car.car_status = data
-            await car.async_sync_store()
-        elif '/vehicles/energy-cost/total/' in url:
-            car.car_mileage = data
-        elif '/vehicles/tire/alarm/' in url:
-            car.tire_status = data
-        elif f'/vehicles/energy-cost/monthly/{now.year}/{now.month}/' in url:
-            car.energy_cost = data
-        elif f'/parking-photos' in url and data.get('pictures'):
-            car.park_photos = data
-        else:
-            return {'error': f'Unknown url: {url}'}
-        await car.update_entities()
-        await car.async_stop_pull()
-        return data
 
 
 class BaseDevice:
@@ -270,6 +231,7 @@ class BaseDevice:
             coordinator = DataUpdateCoordinator(
                 self.hass,
                 _LOGGER,
+                config_entry=config.get('config_entry'),
                 name=f'{DOMAIN}-{self.vin}-{k}',
                 **kws,
             )
@@ -1087,26 +1049,33 @@ class BaseDevice:
         uri = self.api_url(api)
         jso = json.dumps(pms, separators=(',', ':')) if pms else ''
         how = kwargs.get('method', 'POST' if pms else 'GET')
-        hds = {
-            'Content-Type': 'application/json',
+        sign_hds = {
+            'X-CHJ-Env': 'prod',
+            'X-CHJ-Version': '0.1-20160523142212',
+            'X-CHJ-Key': self.get_config(CONF_API_KEY, ''),
+            'X-CHJ-Deviceid': self.get_config(CONF_DEVICE_ID, ''),
+            'X-CHJ-Method': how,
+            'Accept': 'application/json',
             'Content-Language': 'zh-CN',
             'Content-MD5': base64.b64encode(hashlib.md5(jso.encode()).digest()).decode(),
-            'User-Agent': 'M01/5.11.0 (Android; 6.0.1)',
-            'x-chj-deviceid': self.get_config(CONF_DEVICE_ID, ''),
-            'x-chj-app-version': '5.11.0',
-            'x-chj-env': 'prod',
-            'x-chj-version': '0.1-20160523142212',
-            'x-chj-key': self.get_config(CONF_API_KEY, ''),
-            'x-chj-timestamp': str(int(time.time() * 1000)),
-            'x-chj-nonce': str(uuid.uuid4()),
-            'x-chj-sign': self.get_config(CONF_API_SIGN, ''),
-            'x-chj-token': self.get_config(CONF_API_TOKEN, ''),
-            'x-chj-devicetype': '2',
-            'x-chj-modelname': 'ANDROID',
-            'x-chj-devicemodel': 'XiaoMi',
-            'x-chj-vin': self.vin,
-            'x-chj-traceid': str(uuid.uuid4()),
-            'x-chj-metadata': '{"language":"zh","code":"102004"}',
+            'Content-Type': 'application/json',
+            'X-CHJ-Timestamp': str(int(time.time() * 1000)),
+            'X-CHJ-Nonce': uuid.uuid4().hex,
+        }
+        sign_str = '\n'.join(sign_hds.values()) + '\n'
+        sing_key = base64.b64decode(self.get_config(CONF_HMAC_KEY, ''))
+        hds = {
+            'User-Agent': 'okhttp/3.12.1',
+            'X-CHJ-Vin': self.vin,
+            'X-CHJ-Sign': base64.b64encode(hmac.new(sing_key, sign_str.encode(), hashlib.sha256).digest()).decode(),
+            'X-CHJ-Token': self.get_config(CONF_API_TOKEN, ''),
+            'X-CHJ-ModelName': 'ANDROID',
+            'X-CHJ-DeviceType': '2',
+            'X-CHJ-DeviceModel': 'XiaoMi',
+            'X-CHJ-App-version': APP_VERSION,
+            'X-CHJ-Traceid': str(uuid.uuid4()),
+            'X-CHJ-Metadata': '{"language":"zh","code":"102004"}',
+            **sign_hds,
         }
         rsp = None
         try:
