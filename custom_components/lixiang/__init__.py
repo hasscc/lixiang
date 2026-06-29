@@ -1072,7 +1072,7 @@ class BaseDevice:
             'X-CHJ-ModelName': 'ANDROID',
             'X-CHJ-DeviceType': '2',
             'X-CHJ-DeviceModel': 'XiaoMi',
-            'X-CHJ-App-version': APP_VERSION,
+            'X-CHJ-App-Version': APP_VERSION,
             'X-CHJ-Traceid': str(uuid.uuid4()),
             'X-CHJ-Metadata': '{"language":"zh","code":"102004"}',
             **sign_hds,

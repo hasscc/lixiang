@@ -7,8 +7,8 @@
         "data": {
           "vin": "车架号",
           "name": "名称",
+          "hmac_key": "HMAC Key",
           "api_key": "x-chj-key",
-          "api_sign": "x-chj-sign",
           "api_token": "x-chj-token",
           "device_id": "x-chj-deviceid"
         }
