@@ -4,7 +4,7 @@ import aiohttp
 import json
 from math import sin, asin, cos, radians, fabs, sqrt
 
-from homeassistant.components.device_tracker.config_entry import (
+from homeassistant.components.device_tracker import (
     TrackerEntity,
     DOMAIN as ENTITY_DOMAIN,
 )
